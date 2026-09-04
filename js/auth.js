@@ -89,7 +89,7 @@ async function logIn(email, password) {
 		method: "POST",
 		body: { email: email, password: password },
 	});
-	if (!res.ok) return { ok: false, message: res.message };
+	if (!res.ok) return { ok: false, status: res.status, message: res.message };
 	_user = _shape(res.user);
 	_readyPromise = Promise.resolve(_user);
 	return { ok: true, user: _user };
