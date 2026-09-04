@@ -42,6 +42,36 @@ curl -s "https://abinash-songs.pages.dev/song/?query=kesariya&songdata=false" | 
 curl -o /dev/null -w "%{http_code}\n" "https://abinash-songs.pages.dev/functions/_lib/saavn.js"   # must be 404
 ```
 
+## Accounts
+
+Accounts are server-side: Pages Functions under `/api/auth/*` backed by the D1
+database `cloud-songs-auth` (schema in `schema.sql`). Passwords are hashed with
+PBKDF2-SHA256 (210k iterations) and the browser only receives an HttpOnly,
+`Secure`, `SameSite=Lax` cookie signed with `SESSION_SECRET`, so a session
+cannot be forged from devtools the way the old localStorage gate could.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/auth/signup` | Create an account and sign in |
+| `POST /api/auth/login` | Sign in (throttled: 8 tries per email+IP, then a 15 min lockout) |
+| `POST /api/auth/logout` | Clear the session cookie |
+| `GET /api/auth/me` | Current user; every page calls this once via `authReady()` |
+| `POST /api/auth/profile` | Save display name, colour and bio |
+
+Bindings on the Pages project (production and preview):
+
+- `DB` → D1 database `cloud-songs-auth`
+- `SESSION_SECRET` → secret text
+
+To apply a schema change:
+
+```sh
+npx wrangler d1 execute cloud-songs-auth --remote --file schema.sql
+```
+
+There is no email provider, so there is no verification code: signing up logs
+you straight in and `verify-otp.html` just forwards you on.
+
 ## Manual upload (fallback only)
 
 If Git is unavailable, `npm run deploy:manual` uploads the working directory
@@ -61,9 +91,8 @@ matches a commit.
 
 ## Notes
 
-- Accounts are browser-only (`js/auth.js` uses localStorage). That is a demo
-  gate, not authentication — anyone can bypass it from devtools. Real accounts
-  need a server that owns hashing and sessions.
+- Sessions last 30 days. Rotating `SESSION_SECRET` signs every existing
+  session out.
 - Upstream responses are edge-cached briefly (5 min for searches and playlists,
   1 h for lyrics). `/song/get/` is never cached because media URLs expire.
 - Pages Functions on the free plan allow 100,000 invocations/day.

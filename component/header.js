@@ -2,19 +2,11 @@ class Header extends HTMLElement{
     constructor(){
         super();
 
-        const loggedIn = typeof isLoggedIn === "function" ? isLoggedIn() : false;
-        const currentUser = typeof getCurrentUser === "function" ? getCurrentUser() : null;
-
-        const profileMenuItems = loggedIn
-            ? `<li><span class="profile-username">Hi, ${currentUser}</span></li>
-               <li><a href="./Spotify-songs/songs.html">Your Music</a></li>
-               <li><a href="#" id="headerLogoutLink">Log out</a></li>`
-            : `<li><a href="./login.html">Log In</a></li>`;
-
-        const sidenavAuthItems = loggedIn
-            ? `<li><a class="sidenav-link light">Hi, ${currentUser}</a></li>
-               <li><a class="sidenav-link light son" href="#" id="sidenavLogoutLink">Logout</a></li>`
-            : `<li><a class="sidenav-link light son" href="./login.html">Log In</a></li>`;
+        // The session comes from the server (js/auth.js -> /api/auth/me), so the
+        // header first renders signed-out and is refreshed by connectedCallback
+        // as soon as the session is known.
+        const profileMenuItems = Header.profileMenu(false, null);
+        const sidenavAuthItems = Header.sidenavMenu(false, null);
 
         this.innerHTML = `
 		<header class="">
@@ -56,7 +48,7 @@ class Header extends HTMLElement{
 									</div>
 								</button>
 								<div id="profileMenu" class="profileMenu">
-									<ul class="">
+									<ul class="profile-menu-list">
 										${profileMenuItems}
 									</ul>
 								</div>
@@ -104,16 +96,60 @@ class Header extends HTMLElement{
         `;
     }
 
+    static profileMenu(loggedIn, name) {
+        return loggedIn
+            ? `<li><span class="profile-username">Hi, ${name}</span></li>
+               <li><a href="./Spotify-songs/songs.html">Your Music</a></li>
+               <li><a href="#" id="headerLogoutLink">Log out</a></li>`
+            : `<li><a href="./login.html">Log In</a></li>`;
+    }
+
+    static sidenavMenu(loggedIn, name) {
+        return loggedIn
+            ? `<li class="sidenav-auth-item"><a class="sidenav-link light">Hi, ${name}</a></li>
+               <li class="sidenav-auth-item"><a class="sidenav-link light son" href="#" id="sidenavLogoutLink">Logout</a></li>`
+            : `<li class="sidenav-auth-item"><a class="sidenav-link light son" href="./login.html">Log In</a></li>`;
+    }
+
     connectedCallback() {
-        const headerLogout = this.querySelector('#headerLogoutLink');
-        const sidenavLogout = this.querySelector('#sidenavLogoutLink');
+        this.wireLogout();
+        if (typeof authReady === 'function') {
+            authReady().then(() => this.refreshAuth());
+        }
+    }
+
+    /* Swap the two auth menus to match the signed-in state, then re-wire. */
+    refreshAuth() {
+        const loggedIn = typeof isLoggedIn === 'function' ? isLoggedIn() : false;
+        const name = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+
+        const profileList = this.querySelector('.profile-menu-list');
+        if (profileList) profileList.innerHTML = Header.profileMenu(loggedIn, name);
+
+        // The side-nav auth entries share a list with the nav links, so swap
+        // just those items rather than the whole list.
+        const separator = this.querySelector('.h_separator');
+        if (separator) {
+            this.querySelectorAll('.sidenav-auth-item').forEach((li) => li.remove());
+            separator.insertAdjacentHTML('afterend', Header.sidenavMenu(loggedIn, name));
+        }
+
+        this.wireLogout();
+    }
+
+    wireLogout() {
         const doLogout = (e) => {
             e.preventDefault();
+            const done = () => { window.location.href = './index.html'; };
+            // logOut() clears the server cookie; only navigate once it has.
             if (typeof logOut === 'function') {
-                logOut();
+                Promise.resolve(logOut()).then(done, done);
+            } else {
+                done();
             }
-            window.location.href = './index.html';
         };
+        const headerLogout = this.querySelector('#headerLogoutLink');
+        const sidenavLogout = this.querySelector('#sidenavLogoutLink');
         if (headerLogout) headerLogout.addEventListener('click', doLogout);
         if (sidenavLogout) sidenavLogout.addEventListener('click', doLogout);
     }

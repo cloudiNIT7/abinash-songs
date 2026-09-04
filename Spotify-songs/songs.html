@@ -2891,17 +2891,22 @@
 </script>
 
 
-<!-- Auth guard + personalization. Accounts are stored in this browser
-     (see js/auth.js) — there is no auth backend, so this gate is a
-     convenience/demo flow rather than real security. -->
+<!-- Auth guard + personalization. Accounts live on the server (D1 via
+     /api/auth/*, see js/auth.js); the browser only holds an HttpOnly
+     session cookie, so this gate is enforced server-side. -->
 <script src="../js/auth.js"></script>
 <script>
-	if (!isLoggedIn()) {
-		window.location.href = "../login.html";
-	} else if (!isProfileComplete()) {
-		// New (or not-yet-set-up) accounts finish setup before they land here.
-		window.location.href = "../profile-setup.html?next=./Spotify-songs/songs.html";
-	} else {
+	authReady().then(function () {
+		if (!isLoggedIn()) {
+			window.location.href = "../login.html";
+			return;
+		}
+		if (!isProfileComplete()) {
+			// New (or not-yet-set-up) accounts finish setup before they land here.
+			window.location.href = "../profile-setup.html?next=./Spotify-songs/songs.html";
+			return;
+		}
+
 		var user = getCurrentUserObj();
 		var displayName = user.display_name || user.username;
 
@@ -2917,10 +2922,10 @@
 
 		document.getElementById("appLogoutLink").addEventListener("click", function (e) {
 			e.preventDefault();
-			logOut();
-			window.location.href = "../index.html";
+			// Wait for the cookie to be cleared before leaving the page.
+			logOut().then(function () { window.location.href = "../index.html"; });
 		});
-	}
+	});
 </script>
 
 <!-- jQuery, Bootstrap (dropdown/collapse/tab), noUiSlider -->

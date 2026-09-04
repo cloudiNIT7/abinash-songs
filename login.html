@@ -220,9 +220,11 @@
 			tabSignup.addEventListener("click", () => setMode("signup"));
 
 			// If already logged in, skip straight past the form.
-			if (isLoggedIn()) {
-				window.location.href = isProfileComplete() ? "./Spotify-songs/songs.html" : "./profile-setup.html";
-			}
+			authReady().then(() => {
+				if (isLoggedIn()) {
+					window.location.href = isProfileComplete() ? "./Spotify-songs/songs.html" : "./profile-setup.html";
+				}
+			});
 
 			authForm.addEventListener("submit", async (e) => {
 				e.preventDefault();

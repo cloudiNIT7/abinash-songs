@@ -187,10 +187,13 @@
 		</div>
 
 		<script src="./js/auth.js"></script>
-		<script>
+		<script type="module">
 			// This page is required after signup/first login — no auth, no page.
+			// The session lives on the server, so wait for it before deciding.
+			await authReady();
 			if (!isLoggedIn()) {
 				window.location.href = "./login.html";
+				throw new Error("not signed in");
 			}
 
 			const currentUser = getCurrentUserObj();
