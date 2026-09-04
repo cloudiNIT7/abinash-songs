@@ -1169,6 +1169,59 @@
 </head>
 <body>
 
+<!-- ===================================================================
+     In-app history.
+
+     The player never navigates: opening a language, the playlists overlay
+     or the now-playing banner only toggles DOM. Without history entries the
+     phone/browser Back button left the app entirely (landing on the login
+     page). Each layer pushes an entry as it opens and is closed again by
+     Back, so Back steps back through the app one layer at a time:
+
+         banner -> playlists overlay -> a language's songs -> languages
+
+     Only once nothing is open does Back leave the page.
+     =================================================================== -->
+<script>
+	window.CSNav = (function () {
+		var stack = [];   // [{ name, close }] innermost last
+
+		function push(name, close) {
+			stack.push({ name: name, close: close });
+			try { history.pushState({ csName: name, csDepth: stack.length }, ""); } catch (e) {}
+		}
+
+		function has(name) {
+			for (var i = 0; i < stack.length; i++) if (stack[i].name === name) return true;
+			return false;
+		}
+
+		/* An in-app close/back control: let the browser consume the entry so
+		   Back and the on-screen control stay in step. */
+		function back(name) {
+			if (stack.length && stack[stack.length - 1].name === name) {
+				history.back();
+				return;
+			}
+			for (var i = stack.length - 1; i >= 0; i--) {
+				if (stack[i].name === name) {
+					var entry = stack.splice(i, 1)[0];
+					if (entry && entry.close) entry.close();
+					return;
+				}
+			}
+		}
+
+		window.addEventListener("popstate", function () {
+			if (!stack.length) return;   // at the base view: let Back leave
+			var top = stack.pop();
+			if (top && top.close) top.close();
+		});
+
+		return { push: push, back: back, has: has, depth: function () { return stack.length; } };
+	})();
+</script>
+
 	<!-- Single-row header: brand + nav on the left, user controls on the right -->
 	<div class="app-topbar header">
 		<a href="#" class="brand" id="brandHome" title="Home">
@@ -1763,12 +1816,20 @@
 			if (!npBanner) return;
 			npBanner.classList.add("is-open");
 			npBanner.setAttribute("aria-hidden", "false");
+			if (window.CSNav && !window.CSNav.has("banner")) window.CSNav.push("banner", hideBanner);
 		}
-		function closeBanner() {
+		/* hideBanner is the DOM-only close used by Back; closeBanner is what the
+		   UI calls, and it goes through history so both paths agree. */
+		function hideBanner() {
 			if (!npBanner) return;
 			npBanner.classList.remove("is-open");
 			npBanner.setAttribute("aria-hidden", "true");
 			if (npVideo) { try { npVideo.pause(); } catch (e) {} }
+		}
+		function closeBanner() {
+			if (!npBanner || !npBanner.classList.contains("is-open")) return;
+			if (window.CSNav && window.CSNav.has("banner")) window.CSNav.back("banner");
+			else hideBanner();
 		}
 		// Switch the banner between the cover image and the matching video.
 		function setBannerModeUI(isVideo) {
@@ -2792,9 +2853,15 @@
 		}
 
 		function showSongsView() {
+			var wasOnLanguages = viewSongsEl && viewSongsEl.hidden;
 			if (viewLanguagesEl) viewLanguagesEl.hidden = true;
 			if (viewSongsEl) viewSongsEl.hidden = false;
 			document.body.classList.remove("picking-language");
+			// One entry for "inside a language": moving between playlists,
+			// search results and history stays on this level.
+			if (wasOnLanguages && window.CSNav && !window.CSNav.has("songs")) {
+				window.CSNav.push("songs", showLanguagesView);
+			}
 			// Start at the top so the hero is on screen rather than scrolled
 			// up behind the sticky header.
 			window.scrollTo({ top: 0, behavior: "auto" });
@@ -2805,7 +2872,8 @@
 		if (backToLangsEl) {
 			backToLangsEl.addEventListener("click", function (e) {
 				e.preventDefault();
-				showLanguagesView();
+				if (window.CSNav && window.CSNav.has("songs")) window.CSNav.back("songs");
+				else showLanguagesView();
 			});
 		}
 
@@ -2826,10 +2894,12 @@
 				"Latest in " + lang.label);
 		}
 
-		// "Home"/logo: back to the current language's latest songs without
-		// navigating, so playback continues.
+		// "Home"/logo: back to the language picker without navigating, so
+		// playback continues. Routed through history when we are inside a
+		// language, so Back does not have a stale entry left over.
 		function goHome() {
-			showLanguagesView();
+			if (window.CSNav && window.CSNav.has("songs")) window.CSNav.back("songs");
+			else showLanguagesView();
 		}
 
 		/* ---------- expired media url recovery ----------
@@ -2898,12 +2968,12 @@
 <script>
 	authReady().then(function () {
 		if (!isLoggedIn()) {
-			window.location.href = "../login.html";
+			window.location.replace("../login.html");
 			return;
 		}
 		if (!isProfileComplete()) {
 			// New (or not-yet-set-up) accounts finish setup before they land here.
-			window.location.href = "../profile-setup.html?next=./Spotify-songs/songs.html";
+			window.location.replace("../profile-setup.html?next=./Spotify-songs/songs.html");
 			return;
 		}
 
@@ -3160,14 +3230,26 @@
 				card.appendChild(artWrap);
 				card.appendChild(title);
 				card.addEventListener("click", function () {
-					if (window.SongsApp) window.SongsApp.openPlaylist(pl);
 					closeOverlay();
+					if (window.SongsApp) window.SongsApp.openPlaylist(pl);
 				});
 				grid.appendChild(card);
 			});
 		}
-		function openOverlay() { render(); overlay.classList.add("is-open"); overlay.setAttribute("aria-hidden", "false"); }
-		function closeOverlay() { overlay.classList.remove("is-open"); overlay.setAttribute("aria-hidden", "true"); }
+		function openOverlay() {
+			render();
+			overlay.classList.add("is-open");
+			overlay.setAttribute("aria-hidden", "false");
+			if (window.CSNav && !window.CSNav.has("overlay")) window.CSNav.push("overlay", hideOverlay);
+		}
+		/* hideOverlay only touches the DOM; closeOverlay routes through history
+		   so Back and the close button behave the same. */
+		function hideOverlay() { overlay.classList.remove("is-open"); overlay.setAttribute("aria-hidden", "true"); }
+		function closeOverlay() {
+			if (!overlay.classList.contains("is-open")) return;
+			if (window.CSNav && window.CSNav.has("overlay")) window.CSNav.back("overlay");
+			else hideOverlay();
+		}
 
 		var albumsBtn = document.getElementById("albumsBtn");
 		var albumsNav = document.getElementById("albumsNav");

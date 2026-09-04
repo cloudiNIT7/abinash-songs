@@ -222,7 +222,7 @@
 			// If already logged in, skip straight past the form.
 			authReady().then(() => {
 				if (isLoggedIn()) {
-					window.location.href = isProfileComplete() ? "./Spotify-songs/songs.html" : "./profile-setup.html";
+					window.location.replace(isProfileComplete() ? "./Spotify-songs/songs.html" : "./profile-setup.html");
 				}
 			});
 
@@ -248,7 +248,7 @@
 				authSubmit.textContent = mode === "login" ? "Log In" : "Sign Up";
 
 				if (result.requiresOtp) {
-					window.location.href = "./verify-otp.html?email=" + encodeURIComponent(result.email || email);
+					window.location.replace("./verify-otp.html?email=" + encodeURIComponent(result.email || email));
 					return;
 				}
 
@@ -266,9 +266,9 @@
 				// First-time (or not-yet-completed) accounts go through the
 				// one-time profile setup screen before reaching the app.
 				if (!result.user || !result.user.profile_completed) {
-					window.location.href = "./profile-setup.html";
+					window.location.replace("./profile-setup.html");
 				} else {
-					window.location.href = "./Spotify-songs/songs.html";
+					window.location.replace("./Spotify-songs/songs.html");
 				}
 			});
 		</script>

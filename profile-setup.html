@@ -192,7 +192,7 @@
 			// The session lives on the server, so wait for it before deciding.
 			await authReady();
 			if (!isLoggedIn()) {
-				window.location.href = "./login.html";
+				window.location.replace("./login.html");
 				throw new Error("not signed in");
 			}
 
@@ -274,11 +274,11 @@
 					// Saved locally only — let them know, then continue anyway.
 					setupError.style.color = "#F2C94C";
 					setupError.textContent = result.message;
-					setTimeout(() => { window.location.href = nextUrl; }, 1600);
+					setTimeout(() => { window.location.replace(nextUrl); }, 1600);
 					return;
 				}
 
-				window.location.href = nextUrl;
+				window.location.replace(nextUrl);
 			});
 		</script>
 	</body>
