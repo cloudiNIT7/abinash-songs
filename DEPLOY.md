@@ -1,33 +1,35 @@
-# Deploying Cloud Songs to Cloudflare Pages
+# Deploying Cloud Songs
 
-The whole app runs on Pages: the pages/CSS/JS are static assets, and the
-JioSaavn API that used to be a Flask service (`JioSaavnAPI/`) is now Pages
+The whole app runs on Cloudflare Pages: the pages/CSS/JS are static assets, and
+the JioSaavn API that used to be a Flask service (`JioSaavnAPI/`) is now Pages
 Functions under `functions/`. The frontend still calls `/song/`, `/song/get/`,
-`/playlist/`, `/album/`, `/lyrics/` and `/result/` on its own origin, so no
-frontend code changed and there is no CORS to configure.
+`/playlist/`, `/album/`, `/lyrics/` and `/result/` on its own origin, so there
+is no CORS to configure and no separate backend to host.
 
-## One-time setup
-
-```sh
-cd Spotify-jiosaavn
-npm install          # installs wrangler locally
-npx wrangler login   # opens a browser to authorise your Cloudflare account
-```
+- **Project:** `abinash-songs` — https://abinash-songs.pages.dev
+- **Repo:** https://github.com/cloudiNIT7/abinash-songs (production branch `main`)
 
 ## Deploy
 
+Push to `main`. That is the whole deploy process:
+
 ```sh
-npm run deploy       # wrangler pages deploy . --project-name cloud-songs
+git add -A
+git commit -m "what changed"
+git push
 ```
 
-The first run asks to create the project and pick a production branch. After it
-finishes you get a `https://cloud-songs.pages.dev` URL. Add a custom domain in
-the dashboard under **Workers & Pages → cloud-songs → Custom domains**.
+Cloudflare clones the repo, bundles `functions/`, uploads the static files and
+publishes - about a minute end to end. Any other branch gets its own preview
+URL instead of touching production.
+
+Watch a build in the dashboard: **Workers & Pages → abinash-songs → Deployments**.
 
 ## Local development
 
 ```sh
-npm run dev          # http://127.0.0.1:8788, static site + Functions
+npm install
+npm run dev      # http://127.0.0.1:8788 - static site + Functions
 ```
 
 `python app.py` in `JioSaavnAPI/` is no longer needed, though it still works if
@@ -36,9 +38,15 @@ you prefer the Flask backend locally.
 ## Verify a deployment
 
 ```sh
-curl -s "https://<your-domain>/song/?query=kesariya&songdata=false" | head -c 120
-curl -o /dev/null -w "%{http_code}\n" "https://<your-domain>/functions/_lib/saavn.js"   # must be 404
+curl -s "https://abinash-songs.pages.dev/song/?query=kesariya&songdata=false" | head -c 120
+curl -o /dev/null -w "%{http_code}\n" "https://abinash-songs.pages.dev/functions/_lib/saavn.js"   # must be 404
 ```
+
+## Manual upload (fallback only)
+
+If Git is unavailable, `npm run deploy:manual` uploads the working directory
+straight to the same project. Prefer `git push`, so that what is live always
+matches a commit.
 
 ## What is where
 
@@ -53,10 +61,9 @@ curl -o /dev/null -w "%{http_code}\n" "https://<your-domain>/functions/_lib/saav
 
 ## Notes
 
-- Accounts are still browser-only (`js/auth.js` uses localStorage). That is a
-  demo gate, not authentication — anyone can bypass it from devtools. Real
-  accounts need a server that owns hashing and sessions.
-- Upstream responses are edge-cached briefly (5 min for searches and
-  playlists, 1 h for lyrics). `/song/get/` is never cached because media URLs
-  expire.
+- Accounts are browser-only (`js/auth.js` uses localStorage). That is a demo
+  gate, not authentication — anyone can bypass it from devtools. Real accounts
+  need a server that owns hashing and sessions.
+- Upstream responses are edge-cached briefly (5 min for searches and playlists,
+  1 h for lyrics). `/song/get/` is never cached because media URLs expire.
 - Pages Functions on the free plan allow 100,000 invocations/day.

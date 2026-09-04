@@ -27,12 +27,8 @@ npm run dev      # http://127.0.0.1:8788 - static site + Functions
 
 ## Deploy
 
-Pushing to `main` deploys automatically via the Cloudflare Pages Git
-integration. To deploy from your machine instead:
-
-```sh
-npm run deploy
-```
+Pushing to `main` deploys to production through the Cloudflare Pages Git
+integration; other branches get preview URLs. There is no manual step.
 
 See [DEPLOY.md](DEPLOY.md) for details and post-deploy checks.
 
