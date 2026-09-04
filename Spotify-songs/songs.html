@@ -1196,6 +1196,19 @@
 			return false;
 		}
 
+		function topIs(name) {
+			return stack.length > 0 && stack[stack.length - 1].name === name;
+		}
+
+		/* Swap the top layer for another in place, without touching browser
+		   history. Used to turn the playlists overlay directly into the songs
+		   view: the single history entry (Back target) is kept, so there is no
+		   history.back()+pushState race in the same tick. */
+		function swapTop(name, close) {
+			if (!stack.length) { push(name, close); return; }
+			stack[stack.length - 1] = { name: name, close: close };
+		}
+
 		/* An in-app close/back control: let the browser consume the entry so
 		   Back and the on-screen control stay in step. */
 		function back(name) {
@@ -1218,7 +1231,10 @@
 			if (top && top.close) top.close();
 		});
 
-		return { push: push, back: back, has: has, depth: function () { return stack.length; } };
+		return {
+			push: push, back: back, has: has, topIs: topIs, swapTop: swapTop,
+			depth: function () { return stack.length; },
+		};
 	})();
 </script>
 
@@ -2853,13 +2869,14 @@
 		}
 
 		function showSongsView() {
-			var wasOnLanguages = viewSongsEl && viewSongsEl.hidden;
 			if (viewLanguagesEl) viewLanguagesEl.hidden = true;
 			if (viewSongsEl) viewSongsEl.hidden = false;
 			document.body.classList.remove("picking-language");
 			// One entry for "inside a language": moving between playlists,
-			// search results and history stays on this level.
-			if (wasOnLanguages && window.CSNav && !window.CSNav.has("songs")) {
+			// search results and history stays on this level. When the
+			// playlists overlay is open, its own entry is turned into the
+			// songs entry by the card handler, so don't add a second one.
+			if (window.CSNav && !window.CSNav.has("songs") && !window.CSNav.has("overlay")) {
 				window.CSNav.push("songs", showLanguagesView);
 			}
 			// Start at the top so the hero is on screen rather than scrolled
@@ -2937,6 +2954,7 @@
 			selectLanguage: selectLang,
 			openPlaylist: openPlaylist,
 			showRecent: showRecent,
+			showLanguages: showLanguagesView,
 			search: search,
 			goHome: goHome,
 			remember: remember,
@@ -3230,7 +3248,25 @@
 				card.appendChild(artWrap);
 				card.appendChild(title);
 				card.addEventListener("click", function () {
-					closeOverlay();
+					// Turn the overlay into the playlist's song list in one move.
+					// If the overlay is the only open layer (opened from the
+					// languages list), reuse its history entry as the songs
+					// entry - no back()+push race. If it was opened on top of a
+					// song list, drop the overlay entry and keep that one.
+					if (window.CSNav) {
+						if (window.CSNav.topIs("overlay") && window.CSNav.depth() === 1) {
+							hideOverlay();
+							window.CSNav.swapTop("songs", function () {
+								if (window.SongsApp) window.SongsApp.showLanguages();
+							});
+							if (window.SongsApp) window.SongsApp.openPlaylist(pl);
+							return;
+						}
+						hideOverlay();
+						window.CSNav.back("overlay");
+					} else {
+						hideOverlay();
+					}
 					if (window.SongsApp) window.SongsApp.openPlaylist(pl);
 				});
 				grid.appendChild(card);
