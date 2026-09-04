@@ -1,0 +1,28 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: geolocation=(), camera=(), microphone=()
+
+/assets/*
+  Cache-Control: public, max-age=604800, immutable
+
+/css/*
+  Cache-Control: public, max-age=86400
+
+/js/*
+  Cache-Control: public, max-age=86400
+
+/component/*
+  Cache-Control: public, max-age=86400
+
+/Spotify-songs/icon.png
+  Cache-Control: public, max-age=604800, immutable
+
+# The player and pages themselves must not be cached by the browser, otherwise
+# a deploy keeps showing the previous build until the user clears their cache.
+/*.html
+  Cache-Control: no-cache
+
+/Spotify-songs/songs.html
+  Cache-Control: no-cache

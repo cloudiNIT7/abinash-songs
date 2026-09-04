@@ -1,0 +1,20 @@
+{
+	"version": 1,
+	"include": [
+		"/song",
+		"/song/*",
+		"/playlist",
+		"/playlist/*",
+		"/album",
+		"/album/*",
+		"/lyrics",
+		"/lyrics/*",
+		"/result",
+		"/result/*",
+		"/functions/*",
+		"/node_modules/*",
+		"/package.json",
+		"/package-lock.json"
+	],
+	"exclude": []
+}

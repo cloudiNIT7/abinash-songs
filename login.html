@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no, viewport-fit=cover" />
+		<link rel="stylesheet" href="./css/main.css" />
+		<link rel="stylesheet" href="./css/fonts.css" />
+		<link rel="stylesheet" href="./css/responsive.css" />
+		<title>Login - Cloud Songs</title>
+		<link rel="icon" href="./assets/favicon.png" />
+		<link
+			href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap"
+			rel="stylesheet"
+		/>
+		<style>
+			.login_wrap {
+				min-height: 100vh;
+				background: #121212;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				padding: 40px 15px;
+				box-sizing: border-box;
+			}
+			.login_logo {
+				display: flex;
+				justify-content: center;
+				margin-bottom: 32px;
+			}
+			.login_logo svg {
+				width: 130px;
+				fill: var(--white);
+			}
+			.login_logo .app-brand__icon { height: 60px; }
+			.login_logo .app-brand__text { font-size: 24px; }
+			.login_card {
+				background: #000;
+				width: 100%;
+				max-width: 420px;
+				margin: 0 auto;
+				padding: 40px 32px 32px;
+				border-radius: 8px;
+				box-sizing: border-box;
+			}
+			.login_card h1 {
+				color: var(--white);
+				text-align: center;
+				font-size: 28px;
+				font-weight: 700;
+				margin: 0 0 28px;
+			}
+			.login_tabs {
+				display: flex;
+				margin-bottom: 24px;
+				border-bottom: 1px solid #292929;
+			}
+			.login_tab {
+				flex: 1;
+				text-align: center;
+				padding: 12px 0;
+				color: var(--secondary);
+				font-weight: 700;
+				font-size: 14px;
+				cursor: pointer;
+				border-bottom: 2px solid transparent;
+				background: none;
+				border-top: none;
+				border-left: none;
+				border-right: none;
+			}
+			.login_tab.active {
+				color: var(--white);
+				border-bottom: 2px solid var(--linkgreen);
+			}
+			.login_field {
+				margin-bottom: 18px;
+			}
+			.login_field label {
+				display: block;
+				color: var(--white);
+				font-size: 13px;
+				font-weight: 700;
+				margin-bottom: 8px;
+			}
+			.login_field input {
+				width: 100%;
+				box-sizing: border-box;
+				padding: 12px 14px;
+				border-radius: 4px;
+				border: 1px solid #727272;
+				background: #121212;
+				color: var(--white);
+				font-size: 15px;
+			}
+			.login_field input:focus {
+				outline: none;
+				border-color: var(--white);
+			}
+			.login_error {
+				color: #f15e6c;
+				font-size: 13px;
+				margin: -6px 0 16px;
+				min-height: 16px;
+			}
+			.login_submit {
+				width: 100%;
+				border: none;
+				border-radius: 50px;
+				padding: 14px 0;
+				background-color: #1DB954;
+				color: var(--white);
+				font-weight: 700;
+				font-size: 15px;
+				letter-spacing: 1px;
+				text-transform: uppercase;
+				cursor: pointer;
+				transition-duration: .3s;
+			}
+			.login_submit:hover {
+				background-color: var(--hvrgreen);
+			}
+			.login_hint {
+				color: var(--secondary);
+				font-size: 12px;
+				text-align: center;
+				margin-top: 20px;
+				line-height: 1.5;
+			}
+			.login_back {
+				display: block;
+				text-align: center;
+				margin-top: 24px;
+				color: var(--secondary);
+				font-size: 13px;
+			}
+			.login_back:hover {
+				color: var(--white);
+				text-decoration: underline;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="login_wrap">
+			<div class="login_card">
+				<div class="login_logo">
+					<a href="./index.html">
+						<span class="app-brand"><img class="app-brand__icon" src="./assets/logo.png" alt="" /><span class="app-brand__text">Cloud Songs</span></span>
+					</a>
+				</div>
+
+				<div class="login_tabs">
+					<button type="button" class="login_tab active" id="tabLogin">Log In</button>
+					<button type="button" class="login_tab" id="tabSignup">Sign Up</button>
+				</div>
+
+				<h1 id="formTitle">Log in to Cloud Songs</h1>
+
+				<form id="authForm">
+					<div class="login_field" id="usernameField">
+						<label for="username">Username</label>
+						<input type="text" id="username" name="username" autocomplete="username" placeholder="Enter your username" />
+					</div>
+					<div class="login_field">
+						<label for="email">Email</label>
+						<input type="email" id="email" name="email" autocomplete="email" placeholder="Enter your email" required />
+					</div>
+					<div class="login_field">
+						<label for="password">Password</label>
+						<input type="password" id="password" name="password" autocomplete="current-password" placeholder="Enter your password" required />
+					</div>
+					<div class="login_error" id="authError"></div>
+					<button type="submit" class="login_submit" id="authSubmit">Log In</button>
+				</form>
+
+				<p class="login_hint">
+					Accounts are stored on a real backend and database, not just in your browser.
+				</p>
+				<a href="./index.html" class="login_back">&larr; Back to home</a>
+			</div>
+		</div>
+
+		<script src="./js/auth.js"></script>
+		<script>
+			const tabLogin = document.getElementById("tabLogin");
+			const tabSignup = document.getElementById("tabSignup");
+			const formTitle = document.getElementById("formTitle");
+			const authSubmit = document.getElementById("authSubmit");
+			const authForm = document.getElementById("authForm");
+			const authError = document.getElementById("authError");
+			const passwordInput = document.getElementById("password");
+			const usernameField = document.getElementById("usernameField");
+			const usernameInput = document.getElementById("username");
+
+			let mode = "login"; // or "signup"
+
+			function setMode(newMode) {
+				mode = newMode;
+				authError.textContent = "";
+				if (mode === "login") {
+					tabLogin.classList.add("active");
+					tabSignup.classList.remove("active");
+					formTitle.textContent = "Log in to Cloud Songs";
+					authSubmit.textContent = "Log In";
+					passwordInput.setAttribute("autocomplete", "current-password");
+					usernameField.style.display = "none";
+					usernameInput.required = false;
+				} else {
+					tabSignup.classList.add("active");
+					tabLogin.classList.remove("active");
+					formTitle.textContent = "Create your account";
+					authSubmit.textContent = "Sign Up";
+					passwordInput.setAttribute("autocomplete", "new-password");
+					usernameField.style.display = "";
+					usernameInput.required = true;
+				}
+			}
+
+			setMode("login");
+			tabLogin.addEventListener("click", () => setMode("login"));
+			tabSignup.addEventListener("click", () => setMode("signup"));
+
+			// If already logged in, skip straight past the form.
+			if (isLoggedIn()) {
+				window.location.href = isProfileComplete() ? "./Spotify-songs/songs.html" : "./profile-setup.html";
+			}
+
+			authForm.addEventListener("submit", async (e) => {
+				e.preventDefault();
+				const username = usernameInput.value.trim();
+				const email = document.getElementById("email").value.trim();
+				const password = document.getElementById("password").value;
+
+				if (!email || !password || (mode === "signup" && !username)) {
+					authError.textContent = "Please fill in all fields.";
+					return;
+				}
+
+				authSubmit.disabled = true;
+				authSubmit.textContent = mode === "login" ? "Logging in..." : "Signing up...";
+
+				const result = mode === "login"
+					? await logIn(email, password)
+					: await signUp(username, email, password);
+
+				authSubmit.disabled = false;
+				authSubmit.textContent = mode === "login" ? "Log In" : "Sign Up";
+
+				if (result.requiresOtp) {
+					window.location.href = "./verify-otp.html?email=" + encodeURIComponent(result.email || email);
+					return;
+				}
+
+				if (!result.ok) {
+					authError.textContent = result.message;
+					return;
+				}
+
+				// First-time (or not-yet-completed) accounts go through the
+				// one-time profile setup screen before reaching the app.
+				if (!result.user || !result.user.profile_completed) {
+					window.location.href = "./profile-setup.html";
+				} else {
+					window.location.href = "./Spotify-songs/songs.html";
+				}
+			});
+		</script>
+	</body>
+</html>

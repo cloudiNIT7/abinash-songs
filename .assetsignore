@@ -1,0 +1,10 @@
+# Keep these out of the uploaded static assets. The functions/ directory is
+# compiled into the Pages Worker, so it must never be served as source, and
+# node_modules is only needed locally for wrangler.
+functions
+node_modules
+package.json
+package-lock.json
+.assetsignore
+DEPLOY.md
+.DS_Store
