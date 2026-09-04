@@ -469,10 +469,15 @@
 		.np-banner__controls .play:hover { transform:scale(1.08); background:#fff; }
 		.np-banner__lyrics { display:none; }
 
-		/* ---- "Up next" preview inside the now-playing banner ---- */
+		/* ---- "Up next" preview, pinned to the top-right corner of the banner
+		   (below the close button) rather than stacked under the controls. ---- */
 		.np-banner__upnext {
-			margin-top:22px; padding-top:16px;
-			border-top:1px solid rgba(255,255,255,.15);
+			position:absolute; top:64px; right:24px; z-index:3;
+			width:250px; max-width:32vw;
+			padding:12px; border-radius:12px;
+			background:rgba(0,0,0,.38);
+			border:1px solid rgba(255,255,255,.12);
+			-webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
 			text-align:left;
 			animation:npIn .3s ease both;
 		}
@@ -1185,10 +1190,15 @@
 			.np-banner__artist { font-size:14px; margin-bottom:16px; }
 			.np-banner__close { top:12px; right:16px; font-size:34px; padding:8px; }
 			.np-banner__lyrics { display:none; }
-			/* Up next stays compact on phones so it fits under the controls */
-			.np-banner__upnext { margin-top:16px; padding-top:12px; }
-			.np-banner__upnext__art { width:44px; height:44px; }
-			.np-banner__upnext__title { font-size:13px; }
+			/* Up next: compact chip in the top-right corner on phones too */
+			.np-banner__upnext {
+				top:52px; right:10px; width:44vw; max-width:200px; padding:8px;
+			}
+			.np-banner__upnext__label { margin-bottom:5px; font-size:10px; letter-spacing:1px; }
+			.np-banner__upnext__row { gap:8px; padding:5px; }
+			.np-banner__upnext__art { width:36px; height:36px; }
+			.np-banner__upnext__title { font-size:12px; -webkit-line-clamp:2; }
+			.np-banner__upnext__artist { font-size:10px; }
 			/* The Image/Video toggle has no source any more */
 			.np-banner__modes { display:none !important; }
 		}
