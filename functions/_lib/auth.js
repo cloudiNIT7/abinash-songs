@@ -12,7 +12,17 @@
 
 const COOKIE = "cs_session";
 const SESSION_DAYS = 30;
-const PBKDF2_ITERATIONS = 210000;   // OWASP 2023 guidance for PBKDF2-SHA256
+/**
+ * PBKDF2 cost. OWASP suggests 210k iterations for SHA-256, but that measures
+ * ~26 ms of CPU and the Workers Free plan allows 10 ms per invocation, so
+ * signup/login would be killed mid-hash. 25k measures ~3 ms and leaves room
+ * for the rest of the request.
+ *
+ * The count is stored per account, so raising it later (for example on the
+ * Workers Paid plan, where the budget is 30 s) does not invalidate existing
+ * passwords - old rows keep verifying with the value they were written with.
+ */
+const PBKDF2_ITERATIONS = 25000;
 const MAX_ATTEMPTS = 8;             // per email+IP before a lockout
 const LOCK_SECONDS = 15 * 60;
 const ATTEMPT_WINDOW = 15 * 60;
