@@ -79,9 +79,8 @@ async function signUp(username, email, password) {
 		body: { username: username, email: email, password: password },
 	});
 	if (!res.ok) return { ok: false, message: res.message };
-	_user = _shape(res.user);
-	_readyPromise = Promise.resolve(_user);
-	return { ok: true, user: _user };
+	// Server emailed a code; the account isn't active until it's confirmed.
+	return { ok: true, requiresOtp: true, email: res.email || email };
 }
 
 async function logIn(email, password) {
@@ -89,10 +88,29 @@ async function logIn(email, password) {
 		method: "POST",
 		body: { email: email, password: password },
 	});
+	// Unverified accounts come back with requiresOtp and a fresh emailed code.
+	if (res.requiresOtp) return { ok: false, requiresOtp: true, email: res.email || email };
 	if (!res.ok) return { ok: false, status: res.status, message: res.message };
 	_user = _shape(res.user);
 	_readyPromise = Promise.resolve(_user);
 	return { ok: true, user: _user };
+}
+
+async function verifyOtp(email, code) {
+	const res = await _request("/verify", {
+		method: "POST",
+		body: { email: email, code: code },
+	});
+	if (!res.ok) return { ok: false, message: res.message };
+	_user = _shape(res.user);
+	_readyPromise = Promise.resolve(_user);
+	return { ok: true, user: _user };
+}
+
+async function resendOtp(email) {
+	const res = await _request("/resend", { method: "POST", body: { email: email } });
+	if (!res.ok) return { ok: false, message: res.message };
+	return { ok: true, message: "A new code is on its way." };
 }
 
 async function logOut() {
@@ -114,19 +132,10 @@ async function updateProfile(displayName, avatarColor, bio) {
 }
 
 /* ---------- email verification ----------
- * Signing up logs you straight in: there is no mail provider wired up, so
- * there is no code to send. These remain so the old verify screen degrades
- * gracefully instead of throwing. */
+ * getPendingOtp exists only so the old verify screen doesn't throw; the code
+ * is emailed by the server and never exposed to the client. */
 
 function getPendingOtp() { return null; }
-
-async function verifyOtp() {
-	return { ok: false, message: "Email verification isn't required - just log in." };
-}
-
-async function resendOtp() {
-	return { ok: false, message: "Email verification isn't required - just log in." };
-}
 
 async function syncProfileIfNeeded() { /* the server is the source of truth */ }
 

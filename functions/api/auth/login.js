@@ -1,7 +1,7 @@
 /* POST /api/auth/login  {email, password} */
 import {
 	verifyPassword, createSessionCookie, publicUser, reply, badRequest, readJson,
-	normaliseEmail, checkThrottle, recordFailure, clearFailures, clientKey,
+	normaliseEmail, checkThrottle, recordFailure, clearFailures, clientKey, issueOtp,
 } from "../../_lib/auth.js";
 
 export async function onRequestPost({ request, env }) {
@@ -29,6 +29,16 @@ export async function onRequestPost({ request, env }) {
 	}
 
 	await clearFailures(env, key);
+
+	// An account that never confirmed its email: send a fresh code and send
+	// the client to the verify screen instead of signing in.
+	if (!user.verified) {
+		try {
+			await issueOtp(env, email, "login");
+		} catch (e) { /* still route to verify; they can hit "resend" */ }
+		return reply({ ok: false, requiresOtp: true, email }, { status: 200 });
+	}
+
 	return reply(
 		{ ok: true, user: publicUser(user) },
 		{ cookie: await createSessionCookie(env, user.id) },

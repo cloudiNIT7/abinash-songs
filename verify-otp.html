@@ -85,21 +85,6 @@
 
 		<script src="./js/auth.js?v=20260904c"></script>
 		<script>
-			// Email verification is not part of the flow any more: signing up
-			// creates the account on the server and signs you straight in, and
-			// there is no mail provider wired up to send a code. Anyone who
-			// lands here (old bookmark, back button) is sent where they belong.
-			authReady().then(function () {
-				if (isLoggedIn()) {
-					window.location.replace(isProfileComplete()
-						? "./Spotify-songs/songs.html"
-						: "./profile-setup.html");
-				} else {
-					window.location.replace("./login.html");
-				}
-			});
-		</script>
-		<script>
 			var params = new URLSearchParams(window.location.search);
 			var email = params.get("email") || "";
 			document.getElementById("otpEmail").textContent = email || "your email";
@@ -113,18 +98,6 @@
 			var resendTimer = document.getElementById("otpResendTimer");
 
 			inputs[0].focus();
-
-			// There is no mail server any more, so the code can't be emailed.
-			// Show it here instead. Clearly a demo flow, not a real 2FA check.
-			var demoEl = document.getElementById("otpDemo");
-			function showDemoCode(code) {
-				if (!demoEl) return;
-				var c = code || (typeof getPendingOtp === "function" ? getPendingOtp(email) : null);
-				demoEl.textContent = c
-					? "Demo mode (no mail server): your code is " + c
-					: "";
-			}
-			showDemoCode();
 
 			function code() { return inputs.map(function (i) { return i.value; }).join(""); }
 
@@ -175,7 +148,6 @@
 			resendBtn.addEventListener("click", async function () {
 				resendBtn.disabled = true;
 				var result = await resendOtp(email);
-				if (result.ok) showDemoCode(result.code);
 				errorEl.style.color = result.ok ? "#1DB954" : "#f15e6c";
 				errorEl.textContent = result.message || (result.ok ? "A new code was sent." : "Couldn't resend.");
 				if (result.ok) startCooldown(30); else resendBtn.disabled = false;

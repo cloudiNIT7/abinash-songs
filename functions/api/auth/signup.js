@@ -1,7 +1,9 @@
-/* POST /api/auth/signup  {username, email, password} */
+/* POST /api/auth/signup  {username, email, password}
+   Creates an unverified account and emails a 6-digit code. No session is
+   issued until the code is confirmed at /api/auth/verify. */
 import {
-	hashPassword, createSessionCookie, publicUser, reply, badRequest, readJson,
-	normaliseEmail, validateCredentials, randomHex, PBKDF2_ITERATIONS,
+	hashPassword, publicUser, reply, badRequest, readJson,
+	normaliseEmail, validateCredentials, randomHex, issueOtp, PBKDF2_ITERATIONS,
 } from "../../_lib/auth.js";
 
 export async function onRequestPost({ request, env }) {
@@ -13,47 +15,37 @@ export async function onRequestPost({ request, env }) {
 	const problem = validateCredentials({ email, password, username });
 	if (problem) return badRequest(problem);
 
-	const existing = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email).first();
-	if (existing) return badRequest("An account with that email already exists.", 409);
+	const existing = await env.DB.prepare("SELECT id, verified FROM users WHERE email = ?").bind(email).first();
+	if (existing && existing.verified) {
+		return badRequest("An account with that email already exists.", 409);
+	}
 
 	const salt = randomHex(16);
 	const now = new Date().toISOString();
-	const user = {
-		id: randomHex(16),
-		email,
-		username,
-		display_name: username,
-		bio: "",
-		avatar_color: "#1DB954",
-		password_hash: await hashPassword(password, salt),
-		password_salt: salt,
-		iterations: PBKDF2_ITERATIONS,
-		profile_complete: 0,
-		created_at: now,
-		updated_at: now,
-	};
+	const passwordHash = await hashPassword(password, salt);
 
-	try {
+	if (existing) {
+		// An earlier, never-verified signup: overwrite it with the new details
+		// rather than blocking the user forever.
+		await env.DB.prepare(
+			`UPDATE users SET username = ?, display_name = ?, password_hash = ?, password_salt = ?,
+			 iterations = ?, profile_complete = 0, verified = 0, updated_at = ? WHERE id = ?`,
+		).bind(username, username, passwordHash, salt, PBKDF2_ITERATIONS, now, existing.id).run();
+	} else {
 		await env.DB.prepare(
 			`INSERT INTO users (id, email, username, display_name, bio, avatar_color,
-			                    password_hash, password_salt, iterations, profile_complete,
+			                    password_hash, password_salt, iterations, profile_complete, verified,
 			                    created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		).bind(
-			user.id, user.email, user.username, user.display_name, user.bio, user.avatar_color,
-			user.password_hash, user.password_salt, user.iterations, user.profile_complete,
-			user.created_at, user.updated_at,
-		).run();
-	} catch (e) {
-		// The unique index is the authority, in case two signups race.
-		if (String(e.message || "").includes("UNIQUE")) {
-			return badRequest("An account with that email already exists.", 409);
-		}
-		throw e;
+			 VALUES (?, ?, ?, ?, '', '#1DB954', ?, ?, ?, 0, 0, ?, ?)`,
+		).bind(randomHex(16), email, username, username, passwordHash, salt, PBKDF2_ITERATIONS, now, now).run();
 	}
 
-	return reply(
-		{ ok: true, user: publicUser(user) },
-		{ status: 201, cookie: await createSessionCookie(env, user.id) },
-	);
+	try {
+		const sent = await issueOtp(env, email, "signup");
+		if (!sent.ok) return badRequest(`Please wait ${sent.retryIn}s before requesting another code.`, 429);
+	} catch (e) {
+		return badRequest("Couldn't send the verification email. Please try again.", 502);
+	}
+
+	return reply({ ok: true, requiresOtp: true, email }, { status: 201 });
 }

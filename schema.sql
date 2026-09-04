@@ -14,12 +14,23 @@ CREATE TABLE IF NOT EXISTS users (
 	password_salt   TEXT NOT NULL,
 	iterations      INTEGER NOT NULL,
 	profile_complete INTEGER NOT NULL DEFAULT 0,
+	-- 0 until the signup email OTP is confirmed.
+	verified        INTEGER NOT NULL DEFAULT 0,
 	created_at      TEXT NOT NULL,
 	updated_at      TEXT NOT NULL
 );
 
 -- Emails are stored lower-cased, so a plain unique index is enough.
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users (email);
+
+-- One pending signup/login code per email. Codes are stored hashed.
+CREATE TABLE IF NOT EXISTS email_otps (
+	email       TEXT PRIMARY KEY,
+	code_hash   TEXT NOT NULL,
+	expires_at  INTEGER NOT NULL,
+	attempts    INTEGER NOT NULL DEFAULT 0,
+	last_sent_at INTEGER NOT NULL DEFAULT 0
+);
 
 -- Throttles password guessing per email+IP. Rows are disposable.
 CREATE TABLE IF NOT EXISTS login_attempts (

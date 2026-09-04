@@ -237,3 +237,94 @@ export function validateCredentials({ email, password, username }) {
 }
 
 export { PBKDF2_ITERATIONS };
+
+/* ---------- email OTP ---------- */
+
+import { sendMail } from "./smtp.js";
+
+const OTP_TTL_SECONDS = 10 * 60;      // codes are valid for 10 minutes
+const OTP_MAX_ATTEMPTS = 6;           // wrong-code tries before a code is burned
+const OTP_RESEND_SECONDS = 30;        // minimum gap between sends
+
+function sixDigitCode() {
+	// Uniform 000000-999999 without modulo bias.
+	const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000;
+	return String(n).padStart(6, "0");
+}
+
+async function sha256Hex(text) {
+	const digest = await crypto.subtle.digest("SHA-256", enc.encode(text));
+	return toHex(digest);
+}
+
+// Codes are stored hashed (salted with the email) so a DB leak can't reveal them.
+async function hashCode(email, code) {
+	return sha256Hex(email + "|" + code);
+}
+
+/**
+ * Create a fresh OTP for an email, store its hash, and email it.
+ * Returns { ok } or { ok:false, retryIn } when asked to resend too soon.
+ */
+export async function issueOtp(env, email, purpose) {
+	const now = Math.floor(Date.now() / 1000);
+	const existing = await env.DB.prepare("SELECT last_sent_at FROM email_otps WHERE email = ?").bind(email).first();
+	if (existing && now - existing.last_sent_at < OTP_RESEND_SECONDS) {
+		return { ok: false, retryIn: OTP_RESEND_SECONDS - (now - existing.last_sent_at) };
+	}
+
+	const code = sixDigitCode();
+	const codeHash = await hashCode(email, code);
+	const expiresAt = now + OTP_TTL_SECONDS;
+
+	await env.DB.prepare(
+		`INSERT INTO email_otps (email, code_hash, expires_at, attempts, last_sent_at)
+		 VALUES (?, ?, ?, 0, ?)
+		 ON CONFLICT(email) DO UPDATE SET
+		   code_hash = excluded.code_hash,
+		   expires_at = excluded.expires_at,
+		   attempts = 0,
+		   last_sent_at = excluded.last_sent_at`,
+	).bind(email, codeHash, expiresAt, now).run();
+
+	await sendMail(env, otpEmail(email, code, purpose));
+	return { ok: true };
+}
+
+/** Validate a submitted code; on success the row is deleted. */
+export async function checkOtp(env, email, code) {
+	const now = Math.floor(Date.now() / 1000);
+	const row = await env.DB.prepare("SELECT * FROM email_otps WHERE email = ?").bind(email).first();
+	if (!row) return { ok: false, error: "Request a new code." };
+	if (row.expires_at < now) {
+		await env.DB.prepare("DELETE FROM email_otps WHERE email = ?").bind(email).run();
+		return { ok: false, error: "That code has expired. Request a new one." };
+	}
+	if (row.attempts >= OTP_MAX_ATTEMPTS) {
+		await env.DB.prepare("DELETE FROM email_otps WHERE email = ?").bind(email).run();
+		return { ok: false, error: "Too many wrong attempts. Request a new code." };
+	}
+	const submitted = await hashCode(email, String(code || "").trim());
+	if (!safeEqual(submitted, row.code_hash)) {
+		await env.DB.prepare("UPDATE email_otps SET attempts = attempts + 1 WHERE email = ?").bind(email).run();
+		return { ok: false, error: "Incorrect code." };
+	}
+	await env.DB.prepare("DELETE FROM email_otps WHERE email = ?").bind(email).run();
+	return { ok: true };
+}
+
+function otpEmail(email, code, purpose) {
+	const heading = purpose === "login" ? "Confirm your sign-in" : "Confirm your email";
+	const text =
+		`Your Cloud Songs verification code is ${code}\n\n` +
+		`It expires in 10 minutes. If you didn't request this, you can ignore this email.`;
+	const html =
+		`<div style="font-family:Arial,Helvetica,sans-serif;max-width:440px;margin:0 auto;padding:24px;color:#111">` +
+		`<h2 style="margin:0 0 6px;color:#1DB954">Cloud Songs</h2>` +
+		`<p style="margin:0 0 18px;font-size:15px;color:#333">${heading}. Enter this code to continue:</p>` +
+		`<div style="font-size:34px;font-weight:700;letter-spacing:8px;background:#f4f4f4;border-radius:10px;` +
+		`padding:16px 0;text-align:center;color:#111">${code}</div>` +
+		`<p style="margin:18px 0 0;font-size:12px;color:#888">This code expires in 10 minutes. ` +
+		`If you didn't request it, ignore this email.</p></div>`;
+	return { to: email, subject: `${code} is your Cloud Songs code`, text, html };
+}

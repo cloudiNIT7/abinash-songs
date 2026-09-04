@@ -8,5 +8,6 @@ package-lock.json
 .assetsignore
 DEPLOY.md
 schema.sql
+migrations
 README.md
 .DS_Store
