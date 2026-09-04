@@ -1908,9 +1908,9 @@
 		if (npModeVideo) npModeVideo.addEventListener("click", showVideo);
 		if (nowBlock) nowBlock.addEventListener("click", openBanner);
 		if (npClose) npClose.addEventListener("click", function (e) { e.preventDefault(); closeBanner(); });
-		if (npBanner) npBanner.addEventListener("click", function (e) {
-			if (e.target === npBanner || e.target === npBg) closeBanner();
-		});
+		// Tapping the backdrop used to dismiss the banner, which made it close
+		// by accident while a song was playing. The × (or Back, or Escape on a
+		// keyboard) is now the only way out.
 		document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeBanner(); });
 		if (npPlay) npPlay.addEventListener("click", function (e) { e.preventDefault(); togglePlay(); });
 		if (npNext) npNext.addEventListener("click", function (e) { e.preventDefault(); nextTrack(); });
