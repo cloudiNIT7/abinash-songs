@@ -4,7 +4,7 @@
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no, viewport-fit=cover" />
 	<title>Cloud Songs - G-Eazy</title>
-	<link rel="icon" href="../assets/favicon.png" />
+	<link rel="icon" href="../assets/favicon.png?v=20260904c" />
 
 	<!-- Fonts / Icons -->
 	<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700&display=swap" rel="stylesheet" />
@@ -18,7 +18,7 @@
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/9.2.0/nouislider.min.css" />
 
 	<!-- Compiled app styles -->
-	<link rel="stylesheet" href="../css/app.css" />
+	<link rel="stylesheet" href="../css/app.css?v=20260904c" />
 
 	<style>
 		/* Small additions so the embedded page fits nicely inside this project */
@@ -1172,7 +1172,7 @@
 	<!-- Single-row header: brand + nav on the left, user controls on the right -->
 	<div class="app-topbar header">
 		<a href="#" class="brand" id="brandHome" title="Home">
-			<img class="brand__logo" src="../assets/logo.png" alt="" />
+			<img class="brand__logo" src="../assets/logo.png?v=20260904c" alt="" />
 			<span class="brand__text">Cloud Songs</span>
 		</a>
 		<nav class="top-nav">
@@ -2056,7 +2056,7 @@
 </script>
 
 <!-- Language -> playlist catalogue, consumed by the data layer below -->
-<script src="../js/catalogue.js"></script>
+<script src="../js/catalogue.js?v=20260904c"></script>
 
 <!-- ===================================================================
      JioSaavn data layer. Replaces the old S3 /api/songs + /api/videos
@@ -2894,7 +2894,7 @@
 <!-- Auth guard + personalization. Accounts live on the server (D1 via
      /api/auth/*, see js/auth.js); the browser only holds an HttpOnly
      session cookie, so this gate is enforced server-side. -->
-<script src="../js/auth.js"></script>
+<script src="../js/auth.js?v=20260904c"></script>
 <script>
 	authReady().then(function () {
 		if (!isLoggedIn()) {

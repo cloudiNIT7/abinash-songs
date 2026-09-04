@@ -14,7 +14,7 @@ class Header extends HTMLElement{
 				<div class="header">
 					<span class="logo">
 						<a href="./index.html">
-							<span class="app-brand"><img class="app-brand__icon" src="./assets/logo.png" alt="" /><span class="app-brand__text">Cloud Songs</span></span>
+							<span class="app-brand"><img class="app-brand__icon" src="./assets/logo.png?v=20260904c" alt="" /><span class="app-brand__text">Cloud Songs</span></span>
 						</a>
 					</span>
 					<nav class="navigation">
@@ -87,7 +87,7 @@ class Header extends HTMLElement{
 					</ul>
 					<span class="sidenav-logo">
 						<a href="./index.html">
-							<span class="app-brand"><img class="app-brand__icon" src="./assets/logo.png" alt="" /><span class="app-brand__text">Cloud Songs</span></span>
+							<span class="app-brand"><img class="app-brand__icon" src="./assets/logo.png?v=20260904c" alt="" /><span class="app-brand__text">Cloud Songs</span></span>
 						</a>
 					</span>
 				</div>

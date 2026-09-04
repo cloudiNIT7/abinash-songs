@@ -4,23 +4,27 @@
   X-Frame-Options: SAMEORIGIN
   Permissions-Policy: geolocation=(), camera=(), microphone=()
 
+# Images are content-stable and referenced with a ?v= stamp when they change.
 /assets/*
   Cache-Control: public, max-age=604800, immutable
-
-/css/*
-  Cache-Control: public, max-age=86400
-
-/js/*
-  Cache-Control: public, max-age=86400
-
-/component/*
-  Cache-Control: public, max-age=86400
 
 /Spotify-songs/icon.png
   Cache-Control: public, max-age=604800, immutable
 
-# The player and pages themselves must not be cached by the browser, otherwise
-# a deploy keeps showing the previous build until the user clears their cache.
+# Scripts and styles must revalidate. They used to be cached for a day, which
+# let a browser run new HTML against a day-old auth client - the login flow
+# broke in confusing ways until the cache expired. Revalidation is a cheap 304.
+/js/*
+  Cache-Control: no-cache
+
+/css/*
+  Cache-Control: no-cache
+
+/component/*
+  Cache-Control: no-cache
+
+# The pages themselves must not be cached either, otherwise a deploy keeps
+# showing the previous build.
 /*.html
   Cache-Control: no-cache
 
