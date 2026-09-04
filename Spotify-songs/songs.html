@@ -467,14 +467,43 @@
 			box-shadow:0 8px 24px rgba(0,0,0,.5);
 		}
 		.np-banner__controls .play:hover { transform:scale(1.08); background:#fff; }
-		.np-banner__lyrics {
-			display:none; margin-top:24px; padding-top:20px;
+		.np-banner__lyrics { display:none; }
+
+		/* ---- "Up next" preview inside the now-playing banner ---- */
+		.np-banner__upnext {
+			margin-top:22px; padding-top:16px;
 			border-top:1px solid rgba(255,255,255,.15);
-			white-space:pre-wrap; text-align:center;
-			color:rgba(255,255,255,.9); font-size:15px; line-height:1.9;
+			text-align:left;
 			animation:npIn .3s ease both;
 		}
-		.np-banner__lyrics.is-active { display:block; }
+		.np-banner__upnext[hidden] { display:none; }
+		.np-banner__upnext__label {
+			display:block; margin-bottom:8px;
+			color:rgba(255,255,255,.6); font-size:11px; font-weight:700;
+			letter-spacing:1.4px; text-transform:uppercase;
+		}
+		.np-banner__upnext__row {
+			display:flex; align-items:center; gap:12px;
+			padding:8px; border-radius:10px; cursor:pointer;
+			background:rgba(255,255,255,.06);
+			transition:background .15s ease;
+		}
+		.np-banner__upnext__row:hover { background:rgba(255,255,255,.12); }
+		.np-banner__upnext__art {
+			width:48px; height:48px; flex:none; border-radius:6px;
+			object-fit:cover; background:#2a2a2a;
+			box-shadow:0 3px 10px rgba(0,0,0,.45);
+		}
+		.np-banner__upnext__meta { min-width:0; flex:1 1 auto; }
+		.np-banner__upnext__title {
+			color:#fff; font-size:14px; font-weight:600; line-height:1.3;
+			overflow-wrap:break-word; word-break:break-word;
+			display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+		}
+		.np-banner__upnext__artist {
+			color:rgba(255,255,255,.65); font-size:12px; margin-top:2px;
+			white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+		}
 
 		/* ---- Inline SVG control icons (crisp, consistent) ---- */
 		.current-track__actions .ct-btn { display:inline-flex; align-items:center; justify-content:center; }
@@ -1155,7 +1184,11 @@
 			.np-banner__title { font-size:20px; }
 			.np-banner__artist { font-size:14px; margin-bottom:16px; }
 			.np-banner__close { top:12px; right:16px; font-size:34px; padding:8px; }
-			.np-banner__lyrics { max-height:34vh; font-size:14px; }
+			.np-banner__lyrics { display:none; }
+			/* Up next stays compact on phones so it fits under the controls */
+			.np-banner__upnext { margin-top:16px; padding-top:12px; }
+			.np-banner__upnext__art { width:44px; height:44px; }
+			.np-banner__upnext__title { font-size:13px; }
 			/* The Image/Video toggle has no source any more */
 			.np-banner__modes { display:none !important; }
 		}
@@ -1502,8 +1535,6 @@
   
   <div class="current-track__options">
   
-    <a href="#" class="lyrics" id="lyricsBtn">Lyrics</a>
-    
     <span class="controls">
     
       <a href="#" class="control volume" id="volumeBtn" title="Mute / Unmute">
@@ -1545,7 +1576,20 @@
       <a class="ct-btn play" id="npPlay" title="Play/Pause"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7L8 5z"/></svg></a>
       <a class="ct-btn" id="npNext" title="Next"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2V6zM6 18l8.5-6L6 6v12z"/></svg></a>
     </div>
-    <div class="np-banner__lyrics" id="npLyrics"></div>
+
+    <!-- Up next: the song that will auto-play after this one. Hidden when
+         there is no predictable next track (shuffle, repeat-one, or the last
+         track with repeat off). -->
+    <div class="np-banner__upnext" id="npUpNext" hidden>
+      <span class="np-banner__upnext__label">Up next</span>
+      <div class="np-banner__upnext__row" id="npUpNextRow" role="button" tabindex="0" title="Play next song">
+        <img class="np-banner__upnext__art" id="npNextArt" src="../Spotify-songs/icon.png" alt="" />
+        <div class="np-banner__upnext__meta">
+          <div class="np-banner__upnext__title" id="npNextTitle"></div>
+          <div class="np-banner__upnext__artist" id="npNextArtist"></div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1606,13 +1650,16 @@
 		var npProgressFill = document.getElementById("npProgressFill");
 		var npCur = document.getElementById("npCur");
 		var npDur = document.getElementById("npDur");
-		var lyricsBtn = document.getElementById("lyricsBtn");
-		var npLyrics = document.getElementById("npLyrics");
 		var npModes = document.getElementById("npModes");
 		var npModeImage = document.getElementById("npModeImage");
 		var npModeVideo = document.getElementById("npModeVideo");
 		var npVideo = document.getElementById("npVideo");
 		var npVideoLoader = document.getElementById("npVideoLoader");
+		var npUpNext = document.getElementById("npUpNext");
+		var npUpNextRow = document.getElementById("npUpNextRow");
+		var npNextArt = document.getElementById("npNextArt");
+		var npNextTitle = document.getElementById("npNextTitle");
+		var npNextArtist = document.getElementById("npNextArtist");
 		var currentVideo = null;
 		var activeMedia = audio;   // what the bottom bar controls (audio or the video)
 		var videoLoadToken = 0;    // guards against rapid Image/Video toggles
@@ -1633,7 +1680,6 @@
 		prefetchAudio.preload = "auto";
 		var prefetchedUrl = null;
 		var currentTrack = null;
-		var lyricsCache = {};
 
 		function formatTime(seconds) {
 			if (!isFinite(seconds)) return "0:00";
@@ -1760,7 +1806,7 @@
 			currentVideo = (window.SongsApp && window.SongsApp.getVideoFor) ? window.SongsApp.getVideoFor(track.name) : null;
 			if (npModes) npModes.style.display = currentVideo ? "flex" : "none";
 			resetBannerToImage();
-			if (npLyrics && npLyrics.classList.contains("is-active")) loadLyrics();
+			updateUpNext();
 			highlightActiveRow();
 			if (autoplay) {
 				var p = audio.play();
@@ -1813,6 +1859,27 @@
 			if (!playlist.length || shuffle || repeatMode === 2) return -1;
 			return (trackIndex + 1) % playlist.length;
 		}
+
+		// Index of the song that will auto-play after the current one, or -1
+		// when it isn't knowable (shuffle picks at random) or doesn't exist
+		// (repeat-one, or the last track with repeat off).
+		var upNextIndex = -1;
+		function upNextTarget() {
+			if (playlist.length <= 1 || shuffle || repeatMode === 2) return -1;
+			var atEnd = trackIndex === playlist.length - 1;
+			if (atEnd && repeatMode === 0) return -1;
+			return (trackIndex + 1) % playlist.length;
+		}
+		function updateUpNext() {
+			if (!npUpNext) return;
+			upNextIndex = upNextTarget();
+			var nt = upNextIndex >= 0 ? playlist[upNextIndex] : null;
+			if (!nt) { npUpNext.hidden = true; return; }
+			npUpNext.hidden = false;
+			if (npNextTitle) npNextTitle.textContent = nt.name || "Unknown track";
+			if (npNextArtist) npNextArtist.textContent = nt.artist || "";
+			if (npNextArt) npNextArt.src = nt.art || "../Spotify-songs/icon.png";
+		}
 		function prefetchNext() {
 			var ni = predictNextIndex();
 			if (ni < 0) return;
@@ -1832,6 +1899,7 @@
 			if (!npBanner) return;
 			npBanner.classList.add("is-open");
 			npBanner.setAttribute("aria-hidden", "false");
+			updateUpNext();
 			if (window.CSNav && !window.CSNav.has("banner")) window.CSNav.push("banner", hideBanner);
 		}
 		/* hideBanner is the DOM-only close used by Back; closeBanner is what the
@@ -1938,37 +2006,18 @@
 			audio.currentTime = Math.max(0, Math.min(1, ratio)) * audio.duration;
 		});
 
-		// ---- Lyrics (from our JioSaavn backend: /lyrics/?query=<song id>) ----
-		function loadLyrics() {
-			if (!npLyrics) return;
-			npLyrics.classList.add("is-active");
-			if (!currentTrack) { npLyrics.textContent = "Play a song to see its lyrics."; return; }
-			var key = currentTrack.id;
-			if (!key) { npLyrics.textContent = "Lyrics aren't available for this track."; return; }
-			if (lyricsCache[key] !== undefined) { npLyrics.textContent = lyricsCache[key]; return; }
-			npLyrics.textContent = "Searching lyrics\u2026";
-			fetch("/lyrics/?query=" + encodeURIComponent(key))
-				.then(function (r) { return r.ok ? r.json() : {}; })
-				.then(function (j) {
-					var text;
-					if (j && j.status !== false && j.lyrics) {
-						// The API returns <br>-separated text; show it as plain lines.
-						text = String(j.lyrics).replace(/<br\s*\/?>/gi, "\n").trim();
-					} else {
-						text = "Lyrics not available for this track.";
-					}
-					lyricsCache[key] = text;
-					npLyrics.textContent = text;
-				})
-				.catch(function () { npLyrics.textContent = "Couldn't load lyrics right now."; });
+
+
+		// Tapping the "Up next" row jumps to that song immediately.
+		function playUpNext() {
+			if (upNextIndex >= 0) loadTrack(upNextIndex, true);
 		}
-		if (lyricsBtn) lyricsBtn.addEventListener("click", function (e) {
-			e.preventDefault();
-			openBanner();
-			loadLyrics();
-		});
-		// Clicking the cover art hides the lyrics panel (back to the artwork view).
-		if (npArt) npArt.addEventListener("click", function () { if (npLyrics) npLyrics.classList.remove("is-active"); });
+		if (npUpNextRow) {
+			npUpNextRow.addEventListener("click", playUpNext);
+			npUpNextRow.addEventListener("keydown", function (e) {
+				if (e.key === "Enter" || e.key === " ") { e.preventDefault(); playUpNext(); }
+			});
+		}
 
 		[audio, npVideo].forEach(function (m) {
 			if (!m) return;
@@ -2024,6 +2073,7 @@
 			e.preventDefault();
 			shuffle = !shuffle;
 			shuffleBtn.classList.toggle("control--active", shuffle);
+			updateUpNext();
 		});
 		// Repeat cycles: off -> repeat all -> repeat one.
 		if (repeatBtn) repeatBtn.addEventListener("click", function (e) {
@@ -2031,6 +2081,7 @@
 			repeatMode = (repeatMode + 1) % 3;
 			repeatBtn.classList.toggle("control--active", repeatMode !== 0);
 			repeatBtn.setAttribute("data-mode", repeatMode === 2 ? "one" : "");
+			updateUpNext();
 		});
 		// Click the speaker icon to mute/unmute (dragging the slider is ignored here).
 		if (volumeBtn) volumeBtn.addEventListener("click", function (e) {
@@ -2072,6 +2123,7 @@
 			appendPlaylist: function (tracks) {
 				playlist = playlist.concat(tracks || []);
 				highlightActiveRow();
+				updateUpNext();
 			},
 			// Called when a track row is clicked: play it and open the full banner.
 			playIndex: function (i) { loadTrack(i, true); openBanner(); },
