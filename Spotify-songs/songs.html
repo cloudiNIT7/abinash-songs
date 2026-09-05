@@ -853,6 +853,31 @@
 		.profile-overlay.is-editing .profile-section-head,
 		.profile-overlay.is-editing .profile-grid { display:none; }
 		.pf-edit__head { color:#fff; font-size:16px; font-weight:800; margin:0 0 14px; letter-spacing:-.2px; }
+		/* Profile photo controls inside the editor */
+		.pf-photo-row {
+			display:flex; align-items:center; gap:14px; margin-bottom:16px; padding-bottom:16px;
+			border-bottom:1px solid rgba(255,255,255,.09);
+		}
+		.pf-photo-prev {
+			width:64px; height:64px; flex:none; border-radius:50%;
+			background:#1DB954 center/cover no-repeat;
+			display:flex; align-items:center; justify-content:center;
+			color:#fff; font-size:24px; font-weight:800;
+			box-shadow:0 0 0 2px rgba(255,255,255,.14);
+		}
+		.pf-photo-side { display:flex; flex-direction:column; gap:8px; min-width:0; }
+		.pf-photo-btns { display:flex; flex-wrap:wrap; gap:8px; }
+		.pf-photo-hint { color:#9b9b9b; font-size:12px; }
+		.pf-photo-btn {
+			background:rgba(255,255,255,.10); color:#fff; border:1px solid rgba(255,255,255,.22);
+			border-radius:999px; padding:7px 16px; font-size:13px; font-weight:700; font-family:inherit;
+			cursor:pointer; transition:background .16s, border-color .16s, transform .16s;
+		}
+		.pf-photo-btn:hover { background:rgba(255,255,255,.18); border-color:var(--sp-green); transform:translateY(-1px); }
+		.pf-photo-btn:focus-visible { outline:3px solid var(--sp-green-h); outline-offset:2px; }
+		.pf-photo-btn--ghost { background:transparent; color:#b3b3b3; }
+		.pf-photo-btn--ghost:hover { color:#ff8b96; border-color:rgba(241,94,108,.5); background:rgba(241,94,108,.10); }
+		.pf-photo-btn[hidden] { display:none; }
 		.pf-field { margin-bottom:14px; }
 		.pf-field label { display:block; color:#fff; font-size:12px; font-weight:700; letter-spacing:.3px; margin-bottom:7px; }
 		.pf-field input, .pf-field textarea {
@@ -4189,19 +4214,63 @@
 				b.style.backgroundColor = colour;
 				b.setAttribute("aria-label", "Avatar colour " + colour);
 				b.setAttribute("aria-pressed", colour === pfColour ? "true" : "false");
-				b.addEventListener("click", function () { pfColour = colour; pfRenderSwatches(); });
+				b.addEventListener("click", function () {
+					pfColour = colour;
+					pfRenderSwatches();
+					// Preview the colour straight away when there's no photo.
+					var u = (typeof getCurrentUserObj === "function" && getCurrentUserObj()) || {};
+					if (!u.avatar_url) {
+						var nm = ($id("pfName") && $id("pfName").value.trim()) || u.username || "";
+						pfPaintAvatars("", pfColour, (nm.charAt(0) || "?").toUpperCase());
+					}
+				});
 				wrap.appendChild(b);
 			});
 		}
+		/** Paint the account picture (or coloured initial) everywhere it appears:
+		 *  library hero, header chip, account dropdown and the editor preview. */
+		function pfPaintAvatars(url, colour, initial) {
+			var hero = $id("profileAvatar"), heroIni = $id("profileAvatarInitial");
+			if (hero) {
+				if (url) {
+					hero.style.backgroundImage = "url('" + url + "')";
+					hero.style.backgroundSize = "cover";
+					hero.style.backgroundPosition = "center";
+				} else {
+					hero.style.backgroundImage = "none";
+					hero.style.backgroundColor = colour;
+				}
+			}
+			if (heroIni) { heroIni.style.display = url ? "none" : ""; heroIni.textContent = initial; }
+			[$id("userAvatar"), $id("dropdownAvatar"), $id("pfPhotoPrev")].forEach(function (el) {
+				if (!el) return;
+				if (url) {
+					el.style.backgroundImage = "url('" + url + "')";
+					el.style.backgroundSize = "cover";
+					el.style.backgroundPosition = "center";
+					el.style.backgroundRepeat = "no-repeat";
+					el.textContent = "";
+				} else {
+					el.style.backgroundImage = "none";
+					el.style.backgroundColor = colour;
+					el.textContent = initial;
+				}
+			});
+			var rm = $id("pfRemovePhoto");
+			if (rm) rm.hidden = !url;
+		}
+
 		/** Load the signed-in account's values into the editor fields. */
 		function pfFill() {
 			var u = (typeof getCurrentUserObj === "function" && getCurrentUserObj()) || {};
 			var n = $id("pfName"), b = $id("pfBio");
-			if (n) n.value = u.display_name || u.username || "";
+			var name = u.display_name || u.username || "";
+			if (n) n.value = name;
 			if (b) b.value = u.bio || "";
 			pfColour = u.avatar_color || "#1DB954";
 			pfBioCount();
 			pfRenderSwatches();
+			pfPaintAvatars(u.avatar_url || "", pfColour, (name.charAt(0) || "?").toUpperCase());
 			pfMsg("");
 		}
 		function pfSetOpen(open) {
@@ -4248,21 +4317,13 @@
 					pfMsg("Saved", "ok");
 					if (window.notify) window.notify("Profile updated", "info");
 					// Keep the header chip and account dropdown in step with the edit.
-					var ini = (name.charAt(0) || "?").toUpperCase();
 					var chipName = $id("userFirstName");
 					if (chipName) chipName.textContent = name;
 					var ddName = $id("dropdownName");
 					if (ddName) ddName.textContent = name;
 					var ddBio = $id("dropdownBio");
 					if (ddBio) ddBio.textContent = bio;
-					if (!u.avatar_url) {
-						[$id("userAvatar"), $id("dropdownAvatar")].forEach(function (el) {
-							if (!el) return;
-							el.style.backgroundImage = "none";
-							el.style.backgroundColor = pfColour;
-							el.textContent = ini;
-						});
-					}
+					pfPaintAvatars(u.avatar_url || "", pfColour, (name.charAt(0) || "?").toUpperCase());
 					setTimeout(function () { pfSetOpen(false); }, 900);
 				} else {
 					pfMsg((res && res.message) || "Couldn't save your profile.", "err");
@@ -4284,6 +4345,32 @@
 			if (save) save.addEventListener("click", pfSave);
 			var cancel = $id("pfCancel");
 			if (cancel) cancel.addEventListener("click", function () { pfSetOpen(false); });
+
+			// Photo controls: reuse the hidden file input the hero avatar uses.
+			var change = $id("pfChangePhoto");
+			if (change) change.addEventListener("click", function () {
+				var inp = $id("avatarInput");
+				if (inp) inp.click();
+			});
+			var remove = $id("pfRemovePhoto");
+			if (remove) remove.addEventListener("click", function () {
+				var u = (typeof getCurrentUserObj === "function" && getCurrentUserObj()) || {};
+				remove.disabled = true;
+				apiPost("/api/me/avatar", { dataUrl: "" }).then(function (d) {
+					remove.disabled = false;
+					if (d && d.ok) {
+						u.avatar_url = "";
+						var nm = ($id("pfName") && $id("pfName").value.trim()) || u.username || "";
+						pfPaintAvatars("", pfColour, (nm.charAt(0) || "?").toUpperCase());
+						pfMsg("Photo removed", "ok");
+					} else {
+						pfMsg((d && d.error) || "Couldn't remove the photo.", "err");
+					}
+				}).catch(function () {
+					remove.disabled = false;
+					pfMsg("Can't reach the server.", "err");
+				});
+			});
 		}
 
 		/* ---- Avatar upload: resize client-side to a small square, then save ---- */
@@ -4305,13 +4392,10 @@
 						if (d && d.ok) {
 							var u = (typeof getCurrentUserObj === "function" && getCurrentUserObj()) || {};
 							u.avatar_url = dataUrl;
-							var pa = $id("profileAvatar");
-							if (pa) pa.style.backgroundImage = "url('" + dataUrl + "')";
-							if ($id("profileAvatarInitial")) $id("profileAvatarInitial").style.display = "none";
-							var chip = $id("userAvatar");
-							if (chip) { chip.style.backgroundImage = "url('" + dataUrl + "')"; chip.style.backgroundSize = "cover"; chip.style.backgroundPosition = "center"; chip.textContent = ""; }
-							var ddAv = $id("dropdownAvatar");
-							if (ddAv) { ddAv.style.backgroundImage = "url('" + dataUrl + "')"; ddAv.style.backgroundSize = "cover"; ddAv.style.backgroundPosition = "center"; ddAv.textContent = ""; }
+							var nm = u.display_name || u.username || "";
+							// Repaint hero, header chip, dropdown and editor preview at once.
+							pfPaintAvatars(dataUrl, u.avatar_color || "#1DB954", (nm.charAt(0) || "?").toUpperCase());
+							if (window.notify) window.notify("Profile photo updated", "info");
 						} else if (window.notify) {
 							window.notify((d && d.error) || "Couldn't save picture", "error");
 						}
@@ -4755,6 +4839,16 @@
     <!-- Inline editor: display name, bio and avatar colour, saved in place -->
     <div class="pf-edit" id="pfEdit" hidden>
       <h3 class="pf-edit__head">Profile details</h3>
+      <div class="pf-photo-row">
+        <span class="pf-photo-prev" id="pfPhotoPrev" aria-hidden="true"></span>
+        <div class="pf-photo-side">
+          <div class="pf-photo-btns">
+            <button type="button" class="pf-photo-btn" id="pfChangePhoto">Change photo</button>
+            <button type="button" class="pf-photo-btn pf-photo-btn--ghost" id="pfRemovePhoto" hidden>Remove photo</button>
+          </div>
+          <span class="pf-photo-hint">Square images look best. Max ~300&nbsp;KB after resizing.</span>
+        </div>
+      </div>
       <div class="pf-field">
         <label for="pfName">Display name</label>
         <input type="text" id="pfName" maxlength="40" placeholder="How should we show your name?" />
