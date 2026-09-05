@@ -90,7 +90,7 @@ async function logIn(email, password) {
 	});
 	// Unverified accounts come back with requiresOtp and a fresh emailed code.
 	if (res.requiresOtp) return { ok: false, requiresOtp: true, email: res.email || email };
-	if (!res.ok) return { ok: false, status: res.status, message: res.message };
+	if (!res.ok) return { ok: false, status: res.status, noAccount: !!res.noAccount, message: res.message };
 	_user = _shape(res.user);
 	_readyPromise = Promise.resolve(_user);
 	return { ok: true, user: _user };

@@ -275,11 +275,14 @@
 
 				if (!result.ok) {
 					authError.textContent = result.message;
-					// Accounts used to live in this browser's localStorage and
-					// now live on the server, so anyone who signed up before
-					// that change has to create their account once more.
-					if (mode === "login" && result.status === 401) {
-						authError.textContent += " If you signed up before accounts moved to the server, use Sign Up to create it again.";
+					// No account for this email: guide them to Sign Up, keeping
+					// what they typed so they can just add a name and continue.
+					if (mode === "login" && result.noAccount) {
+						setMode("signup");
+						authError.textContent = "No account found for this email. Please create an account first.";
+						document.getElementById("email").value = email;
+						document.getElementById("password").value = password;
+						usernameInput.focus();
 					}
 					return;
 				}

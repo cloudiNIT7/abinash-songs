@@ -20,12 +20,20 @@ export async function onRequestPost({ request, env }) {
 	}
 
 	const user = await env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(email).first();
-	// Same message either way, so the response cannot be used to discover which
-	// emails have accounts.
-	const ok = user ? await verifyPassword(password, user) : false;
-	if (!ok) {
+
+	// No account for this email: tell the user to sign up. (This does reveal
+	// whether an email is registered - an intentional UX choice here.)
+	if (!user) {
 		await recordFailure(env, key);
-		return badRequest("Incorrect email or password.", 401);
+		return reply(
+			{ ok: false, noAccount: true, error: "No account found for this email. Please create an account first." },
+			{ status: 404 },
+		);
+	}
+
+	if (!(await verifyPassword(password, user))) {
+		await recordFailure(env, key);
+		return badRequest("Incorrect password. Please try again.", 401);
 	}
 
 	await clearFailures(env, key);
