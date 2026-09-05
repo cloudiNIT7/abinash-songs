@@ -10,4 +10,5 @@ DEPLOY.md
 schema.sql
 migrations
 README.md
+android
 .DS_Store
