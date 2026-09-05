@@ -479,10 +479,30 @@
 		.current-track__options .controls .volume:hover #volumeIcon { color:#fff; }
 		#volumeIcon svg { width:20px; height:20px; display:block; }
 		.np-banner__controls .ct-btn svg { width:30px; height:30px; display:block; }
-		/* Like heart: outline by default, solid green when liked */
-		#npLike svg { width:26px; height:26px; }
-		#npLike.is-liked svg { fill:var(--sp-green); stroke:var(--sp-green); }
+		/* Like heart: white outline by default, solid green when liked, with a
+		   pop + expanding-ring animation on the moment it's liked. */
+		#npLike { position:relative; color:rgba(255,255,255,.9); }
+		#npLike svg { width:27px; height:27px; transition:transform .15s ease; }
 		#npLike.is-liked { color:var(--sp-green); }
+		#npLike.is-liked svg { fill:var(--sp-green); stroke:var(--sp-green); }
+		#npLike.pop svg { animation:likePop .5s cubic-bezier(.17,.89,.32,1.28); }
+		#npLike::after {
+			content:""; position:absolute; left:50%; top:50%;
+			width:26px; height:26px; margin:-13px 0 0 -13px; border-radius:50%;
+			border:2px solid var(--sp-green); opacity:0; transform:scale(0); pointer-events:none;
+		}
+		#npLike.pop::after { animation:likeRing .55s ease-out; }
+		@keyframes likePop {
+			0%   { transform:scale(1); }
+			15%  { transform:scale(.75); }
+			45%  { transform:scale(1.4); }
+			70%  { transform:scale(.9); }
+			100% { transform:scale(1); }
+		}
+		@keyframes likeRing {
+			0%   { opacity:.65; transform:scale(.5); }
+			100% { opacity:0;   transform:scale(2.6); }
+		}
 		.control--active svg { fill:var(--sp-green); }
 
 		/* Volume slider: green fill = level, grey track, handle on hover (matches progress bar) */
@@ -1580,7 +1600,7 @@
     <div class="np-banner__progress" id="npProgress"><span id="npProgressFill"></span></div>
     <div class="np-banner__times"><span id="npCur">0:00</span><span id="npDur">0:00</span></div>
     <div class="np-banner__controls">
-      <a class="ct-btn" id="npLike" title="Like"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.9-10-9.2C.4 8.9 1.8 5.5 5 5.5c1.9 0 3.2 1.1 4 2.3.8-1.2 2.1-2.3 4-2.3 3.2 0 4.6 3.4 3 6.3C19.5 16.1 12 21 12 21z"/></svg></a>
+      <a class="ct-btn" id="npLike" title="Like"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></a>
       <a class="ct-btn" id="npPrev" title="Previous"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6V6zm3.5 6 8.5 6V6l-8.5 6z"/></svg></a>
       <a class="ct-btn play" id="npPlay" title="Play/Pause"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7L8 5z"/></svg></a>
       <a class="ct-btn" id="npNext" title="Next"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2V6zM6 18l8.5-6L6 6v12z"/></svg></a>
@@ -1980,8 +2000,18 @@
 		if (npLike) npLike.addEventListener("click", function (e) {
 			e.preventDefault();
 			if (!currentTrack || !window.SongsApp || !window.SongsApp.toggleLike) return;
-			window.SongsApp.toggleLike(currentTrack);
+			var liked = window.SongsApp.toggleLike(currentTrack);
 			updateLikeButton();
+			// Play the pop + ring animation only when the song was just liked.
+			if (liked) {
+				npLike.classList.remove("pop");
+				// reflow so the animation can restart on rapid re-likes
+				void npLike.offsetWidth;
+				npLike.classList.add("pop");
+			}
+		});
+		if (npLike) npLike.addEventListener("animationend", function () {
+			npLike.classList.remove("pop");
 		});
 		if (npProgress) npProgress.addEventListener("click", function (e) {
 			if (!audio.duration) return;
