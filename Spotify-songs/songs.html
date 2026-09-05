@@ -3397,24 +3397,6 @@
 				}
 				var played = mostPlayed(12);
 				if (played.length) host.appendChild(fySection("Most played", played));
-
-				// Recommended: search the top term (or the most-played artist).
-				var term = topSearch() || topPlayedArtist();
-				if (!term) return;
-				var label = topSearch() ? ('More like "' + term + '"') : ("Because you like " + term);
-				fetch("/song/?query=" + encodeURIComponent(term) + "&songdata=true", { headers: { Accept: "application/json" } })
-					.then(function (r) { return r.ok ? r.json() : []; })
-					.then(function (data) {
-						var songs = Object.prototype.toString.call(data) === "[object Array]" ? data : (data.songs || []);
-						var recs = songs
-							.filter(function (s) { return s && s.media_url; })
-							.map(toTrack)
-							.slice(0, 12);
-						if (recs.length && document.getElementById("forYou") === host && !viewLanguagesEl.hidden) {
-							host.appendChild(fySection(label, recs));
-						}
-					})
-					.catch(function () { /* recommendations are best-effort */ });
 			});
 		}
 
