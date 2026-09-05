@@ -663,9 +663,9 @@
 		/* ---- Topbar v2: pill nav + account chip ---- */
 		.app-topbar { gap:12px; }
 		/* Header pill nav (Songs / Playlists / Recently played) is hidden on
-		   desktop too - the mobile tab bar covers phones and the logo still
-		   goes home, so the pills were redundant. */
-		.top-nav { display:none !important; align-items:center; gap:6px; }
+		   The header nav (Home / Playlists / Recently played) is shown on
+		   desktop; phones use the fixed bottom tab bar instead (hidden below). */
+		.top-nav { display:flex; align-items:center; gap:6px; }
 		.app-topbar .top-nav a {
 			margin:0; padding:7px 16px; border-radius:20px; border-bottom:none;
 			text-transform:uppercase; font-size:12px; font-weight:600; letter-spacing:.5px;
@@ -1238,7 +1238,7 @@
 			<span class="brand__text">Cloud Songs</span>
 		</a>
 		<nav class="top-nav">
-			<a href="#" id="navSongs" class="active">Songs</a>
+			<a href="#" id="navSongs" class="active">Home</a>
 			<a href="#" id="albumsBtn">Playlists</a>
 			<a href="#" id="navRecent">Recently played</a>
 		</nav>
