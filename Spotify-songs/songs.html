@@ -479,6 +479,10 @@
 		.current-track__options .controls .volume:hover #volumeIcon { color:#fff; }
 		#volumeIcon svg { width:20px; height:20px; display:block; }
 		.np-banner__controls .ct-btn svg { width:30px; height:30px; display:block; }
+		/* Like heart: outline by default, solid green when liked */
+		#npLike svg { width:26px; height:26px; }
+		#npLike.is-liked svg { fill:var(--sp-green); stroke:var(--sp-green); }
+		#npLike.is-liked { color:var(--sp-green); }
 		.control--active svg { fill:var(--sp-green); }
 
 		/* Volume slider: green fill = level, grey track, handle on hover (matches progress bar) */
@@ -1576,6 +1580,7 @@
     <div class="np-banner__progress" id="npProgress"><span id="npProgressFill"></span></div>
     <div class="np-banner__times"><span id="npCur">0:00</span><span id="npDur">0:00</span></div>
     <div class="np-banner__controls">
+      <a class="ct-btn" id="npLike" title="Like"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.9-10-9.2C.4 8.9 1.8 5.5 5 5.5c1.9 0 3.2 1.1 4 2.3.8-1.2 2.1-2.3 4-2.3 3.2 0 4.6 3.4 3 6.3C19.5 16.1 12 21 12 21z"/></svg></a>
       <a class="ct-btn" id="npPrev" title="Previous"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6V6zm3.5 6 8.5 6V6l-8.5 6z"/></svg></a>
       <a class="ct-btn play" id="npPlay" title="Play/Pause"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7L8 5z"/></svg></a>
       <a class="ct-btn" id="npNext" title="Next"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2V6zM6 18l8.5-6L6 6v12z"/></svg></a>
@@ -1635,6 +1640,7 @@
 		var npPlay = document.getElementById("npPlay");
 		var npPrev = document.getElementById("npPrev");
 		var npNext = document.getElementById("npNext");
+		var npLike = document.getElementById("npLike");
 		var npClose = document.getElementById("npClose");
 		var npProgress = document.getElementById("npProgress");
 		var npProgressFill = document.getElementById("npProgressFill");
@@ -1783,6 +1789,7 @@
 			if (npArt) npArt.src = artUrl;
 			if (npBg) npBg.style.backgroundImage = "url('" + artUrl + "')";
 			currentTrack = track;
+			updateLikeButton();
 			setTabForTrack(track, !!autoplay);
 			// The bottom bar stays off-screen until there's actually something
 			// loaded, so an empty transport never occupies the viewport.
@@ -1962,6 +1969,20 @@
 		if (npPlay) npPlay.addEventListener("click", function (e) { e.preventDefault(); togglePlay(); });
 		if (npNext) npNext.addEventListener("click", function (e) { e.preventDefault(); nextTrack(); });
 		if (npPrev) npPrev.addEventListener("click", function (e) { e.preventDefault(); prevTrack(); });
+
+		// Like button: reflects and toggles the current track's liked state.
+		function updateLikeButton() {
+			if (!npLike) return;
+			var liked = !!(currentTrack && window.SongsApp && window.SongsApp.isLiked && window.SongsApp.isLiked(currentTrack));
+			npLike.classList.toggle("is-liked", liked);
+			npLike.setAttribute("title", liked ? "Liked" : "Like");
+		}
+		if (npLike) npLike.addEventListener("click", function (e) {
+			e.preventDefault();
+			if (!currentTrack || !window.SongsApp || !window.SongsApp.toggleLike) return;
+			window.SongsApp.toggleLike(currentTrack);
+			updateLikeButton();
+		});
 		if (npProgress) npProgress.addEventListener("click", function (e) {
 			if (!audio.duration) return;
 			var rect = npProgress.getBoundingClientRect();
@@ -2210,88 +2231,114 @@
 			};
 		}
 
+		/* ---------- per-account library (server-backed) ----------
+		 * History, most-played, likes and searches live on the server, keyed
+		 * to the signed-in account (functions/api/me/*). Each account therefore
+		 * has its own data that follows it across devices and never mixes with
+		 * another account on the same browser. We keep an in-memory copy for
+		 * instant rendering and update it optimistically on each action. */
+
+		var library = { recent: [], top: [], likes: [], searches: [] };
+		var likedSet = {};        // track id -> true
+		var libraryLoaded = false;
+
+		function slim(t) {
+			if (!t || !t.id) return null;
+			return {
+				id: t.id, url: t.url || "", art: t.art || "",
+				name: t.name || "Untitled", artist: t.artist || "",
+				album: t.album || "", year: t.year || "", duration: t.duration || "",
+			};
+		}
+
+		function apiGet(path) {
+			return fetch(path, { credentials: "same-origin", cache: "no-store" })
+				.then(function (r) { return r.ok ? r.json() : null; })
+				.catch(function () { return null; });
+		}
+		function apiPost(path, body) {
+			return fetch(path, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(body || {}),
+				credentials: "same-origin",
+			}).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+		}
+
+		// Pull this account's whole library from the server into memory.
+		function loadLibrary() {
+			return apiGet("/api/me/library").then(function (d) {
+				if (d && d.ok) {
+					library.recent = d.recent || [];
+					library.top = d.top || [];
+					library.likes = d.likes || [];
+					library.searches = d.searches || [];
+					likedSet = {};
+					library.likes.forEach(function (t) { if (t && t.id) likedSet[t.id] = true; });
+					libraryLoaded = true;
+				}
+				return library;
+			});
+		}
+
 		/* ---------- recently played ---------- */
 
-		function readRecent() {
-			try {
-				var raw = localStorage.getItem(RECENT_KEY);
-				var arr = raw ? JSON.parse(raw) : [];
-				return Object.prototype.toString.call(arr) === "[object Array]" ? arr : [];
-			} catch (e) { return []; }
-		}
-		function writeRecent(list) {
-			try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) {}
-		}
+		function readRecent() { return library.recent || []; }
+
 		function remember(track) {
-			if (!track || !track.id) return;
-			var list = readRecent().filter(function (t) { return t.id !== track.id; });
-			var copy = {};
-			for (var k in track) if (Object.prototype.hasOwnProperty.call(track, k)) copy[k] = track[k];
-			copy.played_at = Date.now();
-			list.unshift(copy);
-			writeRecent(list.slice(0, RECENT_MAX));
-			bumpPlay(copy);
+			var s = slim(track);
+			if (!s) return;
+			// Optimistic: move to the front of recent immediately.
+			library.recent = [s].concat((library.recent || []).filter(function (t) { return t.id !== s.id; })).slice(0, RECENT_MAX);
+			apiPost("/api/me/play", { track: s });
 		}
 
-		/* ---------- personalization: play counts + searches ---------- */
+		/* ---------- most played / searches ---------- */
 
-		function _read(key, fallback) {
-			try { var r = localStorage.getItem(key); return r ? JSON.parse(r) : fallback; }
-			catch (e) { return fallback; }
-		}
-		function _write(key, val) {
-			try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
-		}
-
-		// Count how often each track is played, keeping a light copy so the
-		// "Most played" row can render (and play) without re-fetching.
-		function bumpPlay(track) {
-			if (!track || !track.id) return;
-			var plays = _read(PLAYS_KEY, {});
-			var slim = {
-				id: track.id, url: track.url, art: track.art,
-				name: track.name, artist: track.artist,
-				album: track.album, year: track.year, duration: track.duration,
-			};
-			var rec = plays[track.id] || { count: 0 };
-			rec.count += 1;
-			rec.at = Date.now();
-			rec.track = slim;
-			plays[track.id] = rec;
-			_write(PLAYS_KEY, plays);
-		}
 		function mostPlayed(limit) {
-			var plays = _read(PLAYS_KEY, {});
-			var arr = [];
-			for (var id in plays) if (plays[id] && plays[id].track && plays[id].track.url) arr.push(plays[id]);
-			arr.sort(function (a, b) { return (b.count - a.count) || (b.at - a.at); });
-			return arr.slice(0, limit || 12).map(function (r) { return r.track; });
+			return (library.top || []).slice(0, limit || 12);
 		}
 		function topPlayedArtist() {
-			var plays = _read(PLAYS_KEY, {});
 			var byArtist = {};
-			for (var id in plays) {
-				var t = plays[id] && plays[id].track;
-				if (!t || !t.artist) continue;
+			(library.top || []).concat(library.recent || []).forEach(function (t) {
+				if (!t || !t.artist) return;
 				var first = String(t.artist).split(",")[0].trim();
-				if (first) byArtist[first] = (byArtist[first] || 0) + plays[id].count;
-			}
+				if (first) byArtist[first] = (byArtist[first] || 0) + 1;
+			});
 			var best = null, bestN = 0;
 			for (var a in byArtist) if (byArtist[a] > bestN) { bestN = byArtist[a]; best = a; }
 			return best;
 		}
 
-		// Remember what the user searches (plain terms only, not pasted links).
 		function recordSearch(query) {
 			var q = String(query || "").trim();
 			if (!q || /^https?:\/\//i.test(q)) return;
-			var list = _read(SEARCH_KEY, []).filter(function (t) { return t.toLowerCase() !== q.toLowerCase(); });
-			list.unshift(q);
-			_write(SEARCH_KEY, list.slice(0, 20));
+			library.searches = [q].concat((library.searches || []).filter(function (t) {
+				return t.toLowerCase() !== q.toLowerCase();
+			})).slice(0, 20);
+			apiPost("/api/me/search", { term: q });
 		}
 		function topSearch() {
-			var list = _read(SEARCH_KEY, []);
-			return list.length ? list[0] : null;
+			return (library.searches && library.searches.length) ? library.searches[0] : null;
+		}
+
+		/* ---------- likes ---------- */
+
+		function isLiked(track) { return !!(track && track.id && likedSet[track.id]); }
+
+		function toggleLike(track) {
+			var s = slim(track);
+			if (!s) return false;
+			var liked = !likedSet[s.id];
+			if (liked) {
+				likedSet[s.id] = true;
+				library.likes = [s].concat((library.likes || []).filter(function (t) { return t.id !== s.id; }));
+			} else {
+				delete likedSet[s.id];
+				library.likes = (library.likes || []).filter(function (t) { return t.id !== s.id; });
+			}
+			apiPost("/api/me/like", { track: s, liked: liked });
+			return liked;
 		}
 
 		/* ---------- rendering ---------- */
@@ -2634,16 +2681,20 @@
 			showSongsView();
 			moreQueue = [];
 			fetchingMore = false;
-			var list = readRecent();
-			if (!list.length) {
-				allTracks = [];
-				if (tracksTitleEl) tracksTitleEl.textContent = "Recently played";
-				placeholder("Nothing played yet — search for a song to get started.");
-				renderFeatured(null, "Recently played");
-				if (window.SpotifyPlayer) window.SpotifyPlayer.setPlaylist([]);
-				return;
-			}
-			setTracks(list, "Recently played", "Last played");
+			placeholder("Loading your history\u2026");
+			// Refresh from the server so it reflects this account everywhere.
+			loadLibrary().then(function () {
+				var list = readRecent();
+				if (!list.length) {
+					allTracks = [];
+					if (tracksTitleEl) tracksTitleEl.textContent = "Recently played";
+					placeholder("Nothing played yet — search for a song to get started.");
+					renderFeatured(null, "Recently played");
+					if (window.SpotifyPlayer) window.SpotifyPlayer.setPlaylist([]);
+					return;
+				}
+				setTracks(list, "Recently played", "Last played");
+			});
 		}
 
 		if (searchForm) {
@@ -3018,30 +3069,35 @@
 		function renderForYou() {
 			var host = document.getElementById("forYou");
 			if (!host) return;
-			host.innerHTML = "";
+			// Refresh this account's library, then render its personalized rows.
+			loadLibrary().then(function () {
+				if (document.getElementById("forYou") !== host || viewLanguagesEl.hidden) return;
+				host.innerHTML = "";
 
-			var played = mostPlayed(12);
-			if (played.length) host.appendChild(fySection("Most played", played));
+				if (library.likes && library.likes.length) {
+					host.appendChild(fySection("Liked songs", library.likes.slice(0, 20)));
+				}
+				var played = mostPlayed(12);
+				if (played.length) host.appendChild(fySection("Most played", played));
 
-			// Recommended: search the top term (or the most-played artist) and
-			// show songs. Appended asynchronously so the home view isn't blocked.
-			var term = topSearch() || topPlayedArtist();
-			if (!term) return;
-			var label = topSearch() ? ('More like "' + term + '"') : ("Because you like " + term);
-			fetch("/song/?query=" + encodeURIComponent(term) + "&songdata=true", { headers: { Accept: "application/json" } })
-				.then(function (r) { return r.ok ? r.json() : []; })
-				.then(function (data) {
-					var songs = Object.prototype.toString.call(data) === "[object Array]" ? data : (data.songs || []);
-					var recs = songs
-						.filter(function (s) { return s && s.media_url; })
-						.map(toTrack)
-						.slice(0, 12);
-					// Don't re-render if the user already navigated away.
-					if (recs.length && document.getElementById("forYou") === host && !viewLanguagesEl.hidden) {
-						host.appendChild(fySection(label, recs));
-					}
-				})
-				.catch(function () { /* recommendations are best-effort */ });
+				// Recommended: search the top term (or the most-played artist).
+				var term = topSearch() || topPlayedArtist();
+				if (!term) return;
+				var label = topSearch() ? ('More like "' + term + '"') : ("Because you like " + term);
+				fetch("/song/?query=" + encodeURIComponent(term) + "&songdata=true", { headers: { Accept: "application/json" } })
+					.then(function (r) { return r.ok ? r.json() : []; })
+					.then(function (data) {
+						var songs = Object.prototype.toString.call(data) === "[object Array]" ? data : (data.songs || []);
+						var recs = songs
+							.filter(function (s) { return s && s.media_url; })
+							.map(toTrack)
+							.slice(0, 12);
+						if (recs.length && document.getElementById("forYou") === host && !viewLanguagesEl.hidden) {
+							host.appendChild(fySection(label, recs));
+						}
+					})
+					.catch(function () { /* recommendations are best-effort */ });
+			});
 		}
 
 		function showSongsView() {
@@ -3145,9 +3201,17 @@
 			search: search,
 			goHome: goHome,
 			remember: remember,
+			isLiked: isLiked,
+			toggleLike: toggleLike,
 			// The video-songs feature needed the S3 backend; nothing to match now.
 			getVideoFor: function () { return null; }
 		};
+
+		// Load this account's library up front so history/likes/most-played
+		// are ready. Re-render the home rows once it arrives.
+		loadLibrary().then(function () {
+			if (viewLanguagesEl && !viewLanguagesEl.hidden) renderForYou();
+		});
 
 		// Boot: restore the last language (default Hindi) and load its first
 		// playlist so the page always opens with something playable.
