@@ -847,6 +847,11 @@
 			box-shadow:0 20px 44px -24px rgba(0,0,0,.9);
 		}
 		.pf-edit[hidden] { display:none; }
+		/* Edit mode is focused: while the editor is open the library sections are
+		 * hidden, so "Edit profile" shows only the profile fields. */
+		.profile-overlay.is-editing .lib-tile,
+		.profile-overlay.is-editing .profile-section-head,
+		.profile-overlay.is-editing .profile-grid { display:none; }
 		.pf-edit__head { color:#fff; font-size:16px; font-weight:800; margin:0 0 14px; letter-spacing:-.2px; }
 		.pf-field { margin-bottom:14px; }
 		.pf-field label { display:block; color:#fff; font-size:12px; font-weight:700; letter-spacing:.3px; margin-bottom:7px; }
@@ -4203,6 +4208,9 @@
 			var panel = $id("pfEdit"), btn = $id("pfEditToggle");
 			if (!panel) return;
 			panel.hidden = !open;
+			// Focused edit mode: hide the library sections while editing.
+			var ov = $id("profileOverlay");
+			if (ov) ov.classList.toggle("is-editing", !!open);
 			if (btn) {
 				btn.setAttribute("aria-expanded", open ? "true" : "false");
 				btn.textContent = open ? "Close editor" : "Edit profile";
