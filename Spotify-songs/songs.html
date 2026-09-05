@@ -920,6 +920,18 @@
 			white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 		}
 		.suggest__hint { font-size:11px; color:#8a8a8a; padding:8px; text-align:center; }
+		/* Section header + "recent search" term rows in the default panel */
+		.suggest__head {
+			font-size:11px; font-weight:700; letter-spacing:.8px; text-transform:uppercase;
+			color:#8a8a8a; padding:10px 10px 4px;
+		}
+		.suggest__term { display:flex; align-items:center; gap:10px; }
+		.suggest__term .suggest__ic {
+			width:34px; height:34px; flex:none; border-radius:6px; background:rgba(255,255,255,.08);
+			display:flex; align-items:center; justify-content:center;
+		}
+		.suggest__term .suggest__ic svg { width:16px; height:16px; fill:#b3b3b3; }
+		.suggest__term span { color:#eaeaea; font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 		.app-topbar .top-nav a:hover { color:#fff; background:rgba(255,255,255,.08); text-decoration:none; }
 		.app-topbar .top-nav a.active { color:#000; background:var(--sp-green); border-bottom:none; }
 
@@ -3089,6 +3101,72 @@
 			searchInput.setAttribute("aria-expanded", "true");
 		}
 
+		var SEARCH_IC = '<svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>';
+		var CLOCK_IC = '<svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 1 0 9 9h-2a7 7 0 1 1-7-7v3l4-4-4-4v3zm-1 5v5l4 2 .75-1.23-3.25-1.92V8H12z"/></svg>';
+
+		// Empty search bar: show the user's recent searches and recently played,
+		// straight from their account library.
+		function showDefaultSuggest() {
+			if (!suggestEl) return;
+			var searches = (library.searches || []).slice(0, 6);
+			var recents = (library.recent || []).slice(0, 8);
+			if (!searches.length && !recents.length) { hideSuggest(); return; }
+
+			suggestEl.innerHTML = "";
+			sgItems = [];
+			sgIndex = -1;
+
+			if (searches.length) {
+				var h1 = document.createElement("li");
+				h1.className = "suggest__head"; h1.textContent = "Recent searches";
+				suggestEl.appendChild(h1);
+				searches.forEach(function (term) {
+					var li = document.createElement("li");
+					li.className = "suggest__item suggest__term";
+					li.innerHTML = '<span class="suggest__ic">' + SEARCH_IC + '</span><span></span>';
+					li.querySelector("span:last-child").textContent = term;
+					li.addEventListener("mousedown", function (e) {
+						e.preventDefault();
+						searchInput.value = term;
+						hideSuggest();
+						search(term);
+					});
+					suggestEl.appendChild(li);
+				});
+			}
+
+			if (recents.length) {
+				var h2 = document.createElement("li");
+				h2.className = "suggest__head"; h2.textContent = "Recently played";
+				suggestEl.appendChild(h2);
+				recents.forEach(function (tr, i) {
+					var li = document.createElement("li");
+					li.className = "suggest__item";
+					li.innerHTML =
+						'<img class="suggest__art" loading="lazy" alt="" />' +
+						'<div class="suggest__meta"><div class="suggest__title"></div>' +
+						'<div class="suggest__artist"></div></div>' +
+						'<span class="suggest__ic" style="background:none">' + CLOCK_IC + '</span>';
+					var img = li.querySelector(".suggest__art");
+					img.src = tr.art || FALLBACK_ART;
+					img.addEventListener("error", function () { img.src = FALLBACK_ART; });
+					li.querySelector(".suggest__title").textContent = tr.name || "Untitled";
+					li.querySelector(".suggest__artist").textContent = tr.artist || "";
+					li.addEventListener("mousedown", function (e) {
+						e.preventDefault();
+						hideSuggest();
+						showSongsView();
+						setTracks((library.recent || []).slice(), "Recently played", "Recently played");
+						if (window.SpotifyPlayer) window.SpotifyPlayer.playIndex(i);
+					});
+					suggestEl.appendChild(li);
+				});
+			}
+
+			suggestEl.hidden = false;
+			searchInput.setAttribute("aria-expanded", "true");
+		}
+
 		function fetchSuggest(q) {
 			var mine = ++sgSeq;
 			fetch("/song/?query=" + encodeURIComponent(q) + "&songdata=false",
@@ -3114,9 +3192,14 @@
 		}
 
 		if (searchInput && suggestEl) {
+			// Focusing an empty box shows recent searches + recently played.
+			searchInput.addEventListener("focus", function () {
+				if (!searchInput.value.trim()) showDefaultSuggest();
+			});
 			searchInput.addEventListener("input", function () {
 				var q = searchInput.value.trim();
 				if (sgTimer) clearTimeout(sgTimer);
+				if (!q) { showDefaultSuggest(); return; }
 				// A pasted link is resolved on submit; don't suggest for those.
 				if (q.length < 2 || /^https?:\/\//i.test(q)) { hideSuggest(); return; }
 				sgTimer = setTimeout(function () { fetchSuggest(q); }, 220);
