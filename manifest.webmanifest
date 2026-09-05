@@ -1,0 +1,15 @@
+{
+  "name": "Cloud Songs",
+  "short_name": "Cloud Songs",
+  "description": "Stream and browse songs across languages, moods and your own playlists.",
+  "start_url": "/Spotify-songs/songs.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "icons": [
+    { "src": "/assets/pwa-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/assets/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

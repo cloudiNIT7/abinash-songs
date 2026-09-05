@@ -5,6 +5,22 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no, viewport-fit=cover" />
 	<title>Cloud Songs - G-Eazy</title>
 	<link rel="icon" href="../assets/favicon.png?v=20260904c" />
+	<link rel="manifest" href="../manifest.webmanifest" />
+	<meta name="theme-color" content="#121212" />
+	<meta name="mobile-web-app-capable" content="yes" />
+	<meta name="apple-mobile-web-app-capable" content="yes" />
+	<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+	<meta name="apple-mobile-web-app-title" content="Cloud Songs" />
+	<link rel="apple-touch-icon" href="../assets/pwa-192.png" />
+	<script>
+		// Register the service worker so the app is installable (Add to Home
+		// Screen) and opens standalone, like a native app.
+		if ("serviceWorker" in navigator) {
+			window.addEventListener("load", function () {
+				navigator.serviceWorker.register("/sw.js").catch(function () {});
+			});
+		}
+	</script>
 
 	<!-- Fonts / Icons -->
 	<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700&display=swap" rel="stylesheet" />
