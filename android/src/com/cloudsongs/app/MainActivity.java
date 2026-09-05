@@ -43,6 +43,12 @@ public class MainActivity extends Activity {
 				ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 		setContentView(root);
 
+		// Android 13+ needs this granted for the media-playback notification to show.
+		if (Build.VERSION.SDK_INT >= 33) {
+			try { requestPermissions(new String[]{ "android.permission.POST_NOTIFICATIONS" }, 2001); }
+			catch (Throwable ignored) {}
+		}
+
 		try {
 			web = new WebView(this);
 			web.setBackgroundColor(Color.parseColor("#121212"));
