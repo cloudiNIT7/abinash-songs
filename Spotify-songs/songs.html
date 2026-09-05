@@ -3432,15 +3432,34 @@
 			setTracks(tracks, title, title);
 		}
 
+		// Transition from the profile overlay into the songs view without a
+		// history.back()+pushState race: reuse the "profile" entry as "songs".
+		function transitionFromProfile() {
+			hideProfile();
+			if (!window.CSNav) return;
+			if (window.CSNav.topIs("profile")) {
+				window.CSNav.swapTop("songs", function () {
+					if (window.SongsApp) window.SongsApp.showLanguages();
+				});
+			} else if (window.CSNav.has("profile")) {
+				window.CSNav.back("profile");
+			}
+		}
+
 		function openLiked() {
-			closeProfile();
-			showTrackList((library.likes || []).slice(), "Liked songs");
+			transitionFromProfile();
+			showSongsView();
+			placeholder("Loading your liked songs\u2026");
+			// Refresh from the server so the newest likes show.
+			loadLibrary().then(function () {
+				showTrackList((library.likes || []).slice(), "Liked songs");
+			});
 		}
 
 		function openUserPlaylist(id, name) {
-			closeProfile();
-			placeholder("Loading " + name + "\u2026");
+			transitionFromProfile();
 			showSongsView();
+			placeholder("Loading " + name + "\u2026");
 			apiGet("/api/me/playlist?id=" + encodeURIComponent(id)).then(function (d) {
 				if (d && d.ok) showTrackList(d.tracks || [], d.name || name);
 				else showTrackList([], name);
