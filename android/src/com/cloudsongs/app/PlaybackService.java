@@ -17,6 +17,7 @@ import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 
 import java.net.URL;
 
@@ -65,6 +66,7 @@ public class PlaybackService extends Service {
 	private Bitmap mArt = null;
 	private boolean mStartedForeground = false;
 	private String mAnnounced = "";   // song already shown as a heads-up pop
+	private PowerManager.WakeLock mWake;
 
 	@Override
 	public void onCreate() {
@@ -147,6 +149,7 @@ public class PlaybackService extends Service {
 				mDur = intent.getLongExtra(EX_DUR, 0);
 				android.util.Log.d("CloudSongs", "STATE playing=" + mPlaying + " title=" + mTitle);
 				session.setActive(true);
+				setWake(mPlaying);
 				refreshSession();
 				pushNotification();
 			}
@@ -347,10 +350,34 @@ public class PlaybackService extends Service {
 	@Override
 	public IBinder onBind(Intent intent) { return null; }
 
+	// The user swiped the app off recents: the WebView holding the audio is
+	// gone, so stop the service and clear the notification.
+	@Override
+	public void onTaskRemoved(Intent rootIntent) {
+		try { stopForeground(true); } catch (Throwable ignored) {}
+		stopSelf();
+		super.onTaskRemoved(rootIntent);
+	}
+
+	/** Hold a partial wake lock while playing so audio doesn't cut out when the
+	 *  screen turns off; release it when paused/stopped. */
+	private void setWake(boolean on) {
+		try {
+			if (mWake == null) {
+				PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+				mWake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CloudSongs:playback");
+				mWake.setReferenceCounted(false);
+			}
+			if (on) { if (!mWake.isHeld()) mWake.acquire(); }
+			else { if (mWake.isHeld()) mWake.release(); }
+		} catch (Throwable ignored) {}
+	}
+
 	@Override
 	public void onDestroy() {
+		try { setWake(false); } catch (Throwable ignored) {}
 		try { if (ctrlReceiver != null) unregisterReceiver(ctrlReceiver); } catch (Throwable ignored) {}
-		try { if (nm != null) nm.cancel(NOTIF_ID); } catch (Throwable ignored) {}
+		try { if (nm != null) { nm.cancel(NOTIF_ID); nm.cancel(NOTIF_ID_POP); } } catch (Throwable ignored) {}
 		try { if (session != null) session.release(); } catch (Throwable ignored) {}
 		sInstance = null;
 		super.onDestroy();

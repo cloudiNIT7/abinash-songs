@@ -186,10 +186,30 @@ public class MainActivity extends Activity {
 		if (web != null) web.saveState(outState);
 	}
 
+	// Keep audio + JS timers running while the app is in the background so the
+	// song keeps playing (and the notification keeps updating) after you press
+	// Home, switch apps, or lock the screen. We deliberately do NOT call
+	// web.onPause(), which would suspend HTML5 media playback.
+	@Override
+	protected void onPause() {
+		super.onPause();
+		try { if (web != null) web.resumeTimers(); } catch (Throwable ignored) {}
+	}
+
+	@Override
+	protected void onResume() {
+		super.onResume();
+		try { if (web != null) web.resumeTimers(); } catch (Throwable ignored) {}
+	}
+
 	@Override
 	protected void onDestroy() {
 		if (sInstance == this) sInstance = null;
-		try { stopService(new Intent(this, PlaybackService.class)); } catch (Throwable ignored) {}
+		// Do NOT stop the playback service here. While the app is merely
+		// backgrounded (Home / lock / app switch) the Activity is kept alive and
+		// the WebView keeps playing; the foreground service keeps the media
+		// notification visible. The service tears itself down when playback
+		// stops or the task is removed.
 		super.onDestroy();
 	}
 }
