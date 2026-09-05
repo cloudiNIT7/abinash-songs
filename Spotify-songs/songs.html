@@ -1036,6 +1036,7 @@
 			transition:transform .15s ease, box-shadow .15s ease;
 		}
 		.mood-chip:hover { transform:translateY(-3px); box-shadow:0 12px 26px rgba(0,0,0,.5); }
+		.mood-chip.has-img { background-size:cover !important; background-position:center !important; }
 		.mood-chip__emoji { font-size:26px; display:block; margin-bottom:8px; filter:drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
 		.mood-chip__label { font-size:16px; font-weight:800; letter-spacing:.2px; text-shadow:0 1px 4px rgba(0,0,0,.4); }
 		@media (max-width:768px){
@@ -3214,13 +3215,34 @@
 				var b = document.createElement("button");
 				b.type = "button";
 				b.className = "mood-chip";
-				b.style.background = m.g;
+				b.style.background = m.g;   // instant gradient; a cover image fills in
 				b.innerHTML = '<span class="mood-chip__emoji"></span><span class="mood-chip__label"></span>';
 				b.querySelector(".mood-chip__emoji").textContent = m.emoji;
 				b.querySelector(".mood-chip__label").textContent = m.label;
 				b.addEventListener("click", function () { openBrowse(m.q, m.label); });
 				host.appendChild(b);
+				loadMoodImage(b, m);
 			});
+		}
+
+		// Fetch a representative cover for a mood and use it as the tile art.
+		function loadMoodImage(chip, m) {
+			fetch("/browse/?query=" + encodeURIComponent(m.q + " Hindi"), { headers: { Accept: "application/json" } })
+				.then(function (r) { return r.ok ? r.json() : null; })
+				.then(function (d) {
+					var songs = (d && d.songs) || [];
+					var art = songs.length ? (songs[0].image || "") : "";
+					if (!art) return;
+					art = art.replace("150x150", "500x500").replace("50x50", "500x500");
+					var im = new Image();
+					im.onload = function () {
+						// Dark gradient over the image keeps the emoji + label legible.
+						chip.style.backgroundImage = "linear-gradient(rgba(0,0,0,.30), rgba(0,0,0,.62)), url('" + art + "')";
+						chip.classList.add("has-img");
+					};
+					im.src = art;
+				})
+				.catch(function () { /* keep the gradient fallback */ });
 		}
 
 		function renderArtists() { /* removed: Popular artists section */ }
