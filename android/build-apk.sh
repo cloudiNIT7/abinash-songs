@@ -37,9 +37,30 @@ echo "4/6 dex"
 	$(find build/classes -name "*.class")
 
 echo "5/6 package dex into apk + align"
-cp build/base.apk build/unsigned.apk
-(cd build && zip -uj unsigned.apk classes.dex >/dev/null)
-"$BT/zipalign" -f 4 build/unsigned.apk build/aligned.apk
+# Assemble the unsigned APK deterministically with Python's zipfile: copy every
+# entry from the aapt2 output (keeping resources.arsc STORED) and add classes.dex.
+# Avoids any macOS `zip -u` quirks that some package parsers reject.
+python3 - "$PWD/build/base.apk" "$PWD/build/classes.dex" "$PWD/build/unsigned.apk" <<'PYEOF'
+import sys, zipfile, shutil
+base, dex, out = sys.argv[1], sys.argv[2], sys.argv[3]
+with zipfile.ZipFile(base) as zin, zipfile.ZipFile(out, "w") as zout:
+    for item in zin.infolist():
+        data = zin.read(item.filename)
+        # Preserve STORED for resources.arsc (required uncompressed on API 30+);
+        # deflate everything else.
+        comp = zipfile.ZIP_STORED if item.filename == "resources.arsc" else zipfile.ZIP_DEFLATED
+        zi = zipfile.ZipInfo(item.filename, date_time=item.date_time)
+        zi.compress_type = comp
+        zi.external_attr = item.external_attr
+        zout.writestr(zi, data)
+    with open(dex, "rb") as f:
+        dexdata = f.read()
+    zi = zipfile.ZipInfo("classes.dex")
+    zi.compress_type = zipfile.ZIP_DEFLATED
+    zout.writestr(zi, dexdata)
+print("assembled", out)
+PYEOF
+"$BT/zipalign" -f -p 4 build/unsigned.apk build/aligned.apk
 
 echo "6/6 sign"
 if [ ! -f cloudsongs.keystore ]; then
