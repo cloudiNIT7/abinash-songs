@@ -1871,8 +1871,20 @@
 			}
 			if (shuffle) { playRandom(); return; }
 			var atEnd = trackIndex === playlist.length - 1;
-			if (atEnd && repeatMode === 0) {      // off: stop at end of the list
-				setPlayingIcon(false);
+			if (atEnd && repeatMode === 0) {
+				// End of the list: keep the music going with the user's liked
+				// songs, or their recently played if there are no likes.
+				var cont = (window.SongsApp && window.SongsApp.getContinuation)
+					? window.SongsApp.getContinuation(currentTrack && currentTrack.id) : [];
+				cont = (cont || []).filter(function (t) { return t && t.url; });
+				if (cont.length) {
+					playlist = cont;
+					trackIndex = 0;
+					highlightActiveRow();
+					loadTrack(0, true);
+					return;
+				}
+				setPlayingIcon(false);   // nothing to continue with
 				return;
 			}
 			loadTrack(trackIndex + 1, true);      // repeat all (wraps) or mid-list
@@ -2638,12 +2650,14 @@
 		// on screen, in catalogue order.
 		function setMoreSources(skipUrl) {
 			var lang = langByCode(currentLang);
+			var OLD_RE = /(90s|80s|70s|2000s|retro|classic|golden|nostalg|old|let'?s play|best of (?:19|200|201))/i;
 			var pool = [];
 			if (lang && lang.latest) pool.push(lang.latest);
 			pool = pool.concat(PLAYLISTS || []);
 			var seen = {};
 			moreQueue = pool.filter(function (p) {
 				if (!p || !p.url || p.url === skipUrl || seen[p.url]) return false;
+				if (p.name && OLD_RE.test(p.name)) return false;   // keep "Show More" fresh too
 				seen[p.url] = true;
 				return true;
 			});
@@ -3197,12 +3211,16 @@
 		function openLatest(lang) {
 			lang = lang || langByCode(currentLang);
 			if (!lang) { showLanguagesView(); return; }
-			// Daily rotation: cycle through this language's curated lists (its
-			// "latest" plus its playlists) by the day number, so a different
-			// set of songs leads the home view each day instead of the same one.
+			// Daily rotation, but only across FRESH lists so the home view
+			// always leads with current songs, never old/retro collections.
+			// Old-decade and artist-retrospective playlists are filtered out.
+			var OLD_RE = /(90s|80s|70s|2000s|retro|classic|golden|nostalg|old|let'?s play|best of (?:19|200|201))/i;
 			var pool = [];
 			if (lang.latest) pool.push(lang.latest);
-			pool = pool.concat(lang.playlists || []);
+			(lang.playlists || []).forEach(function (p) {
+				if (p && p.name && !OLD_RE.test(p.name)) pool.push(p);
+			});
+			if (!pool.length && lang.latest) pool.push(lang.latest);
 			if (!pool.length) {
 				if (PLAYLISTS.length) openPlaylist(PLAYLISTS[0]);
 				else showLanguagesView();
@@ -3270,6 +3288,14 @@
 			remember: remember,
 			isLiked: isLiked,
 			toggleLike: toggleLike,
+			// Endless playback: when a list finishes, continue from the user's
+			// likes, or their recently played if there are no likes. Excludes
+			// the just-ended track so it doesn't immediately repeat.
+			getContinuation: function (excludeId) {
+				var base = (library.likes && library.likes.length) ? library.likes : (library.recent || []);
+				var list = base.filter(function (t) { return t && t.url && t.id !== excludeId; });
+				return list.length ? list : base.slice();
+			},
 			// The video-songs feature needed the S3 backend; nothing to match now.
 			getVideoFor: function () { return null; }
 		};
