@@ -1,11 +1,15 @@
 package com.cloudsongs.app;
 
 import android.app.Activity;
+import android.app.NotificationManager;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.KeyEvent;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
@@ -17,6 +21,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 /**
  * Cloud Songs Android shell.
@@ -53,8 +58,12 @@ public class MainActivity extends Activity {
 		setContentView(root);
 
 		if (Build.VERSION.SDK_INT >= 33) {
-			try { requestPermissions(new String[]{ "android.permission.POST_NOTIFICATIONS" }, 2001); }
-			catch (Throwable ignored) {}
+			try {
+				if (checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+						!= PackageManager.PERMISSION_GRANTED) {
+					requestPermissions(new String[]{ "android.permission.POST_NOTIFICATIONS" }, 2001);
+				}
+			} catch (Throwable ignored) {}
 		}
 
 		try {
@@ -200,6 +209,45 @@ public class MainActivity extends Activity {
 	protected void onResume() {
 		super.onResume();
 		try { if (web != null) web.resumeTimers(); } catch (Throwable ignored) {}
+		checkNotifStatus(false);
+	}
+
+	@Override
+	public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+		super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+		if (requestCode == 2001) checkNotifStatus(true);
+	}
+
+	/** Surface, on-screen, whether the media notification can actually show.
+	 *  If it's blocked, offer to open the system notification settings. */
+	private void checkNotifStatus(boolean fromPrompt) {
+		boolean enabled = true;
+		try {
+			NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+			if (nm != null) enabled = nm.areNotificationsEnabled();
+		} catch (Throwable ignored) {}
+		if (!enabled) {
+			try {
+				Toast.makeText(this,
+						"Notifications are OFF — the now-playing notification can't show. Tap to enable.",
+						Toast.LENGTH_LONG).show();
+			} catch (Throwable ignored) {}
+			// Take the user straight to this app's notification settings.
+			try {
+				Intent i;
+				if (Build.VERSION.SDK_INT >= 26) {
+					i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+							.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+				} else {
+					i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+							.setData(Uri.parse("package:" + getPackageName()));
+				}
+				i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+				startActivity(i);
+			} catch (Throwable ignored) {}
+		} else if (fromPrompt) {
+			try { Toast.makeText(this, "Notifications enabled \u2713", Toast.LENGTH_SHORT).show(); } catch (Throwable ignored) {}
+		}
 	}
 
 	@Override
