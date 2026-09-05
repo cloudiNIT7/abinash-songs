@@ -150,6 +150,27 @@
 		.dropdown-account-info {
 			padding: 12px 16px;
 		}
+		/* Account identity row: photo (or coloured initial) beside name + email */
+		.dropdown-account-top {
+			display: flex;
+			align-items: center;
+			gap: 11px;
+		}
+		.dropdown-account-avatar {
+			width: 40px;
+			height: 40px;
+			flex: none;
+			border-radius: 50%;
+			background: #1DB954 center/cover no-repeat;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			color: #fff;
+			font-size: 16px;
+			font-weight: 800;
+			box-shadow: 0 0 0 2px rgba(255,255,255,.12);
+		}
+		.dropdown-account-idn { min-width: 0; }
 		.dropdown-account-name {
 			color: #fff;
 			font-weight: 700;
@@ -1645,8 +1666,13 @@
 				</button>
 				<ul class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenu1">
 					<li class="dropdown-account-info">
-						<div class="dropdown-account-name" id="dropdownName"></div>
-						<div class="dropdown-account-email" id="dropdownEmail"></div>
+						<div class="dropdown-account-top">
+							<span class="dropdown-account-avatar" id="dropdownAvatar" aria-hidden="true"></span>
+							<div class="dropdown-account-idn">
+								<div class="dropdown-account-name" id="dropdownName"></div>
+								<div class="dropdown-account-email" id="dropdownEmail"></div>
+							</div>
+						</div>
 						<div class="dropdown-account-bio" id="dropdownBio"></div>
 					</li>
 					<li role="separator" class="divider"></li>
@@ -4115,6 +4141,22 @@
 					}
 					pfMsg("Saved", "ok");
 					if (window.notify) window.notify("Profile updated", "info");
+					// Keep the header chip and account dropdown in step with the edit.
+					var ini = (name.charAt(0) || "?").toUpperCase();
+					var chipName = $id("userFirstName");
+					if (chipName) chipName.textContent = name;
+					var ddName = $id("dropdownName");
+					if (ddName) ddName.textContent = name;
+					var ddBio = $id("dropdownBio");
+					if (ddBio) ddBio.textContent = bio;
+					if (!u.avatar_url) {
+						[$id("userAvatar"), $id("dropdownAvatar")].forEach(function (el) {
+							if (!el) return;
+							el.style.backgroundImage = "none";
+							el.style.backgroundColor = pfColour;
+							el.textContent = ini;
+						});
+					}
 					setTimeout(function () { pfSetOpen(false); }, 900);
 				} else {
 					pfMsg((res && res.message) || "Couldn't save your profile.", "err");
@@ -4161,7 +4203,9 @@
 							if (pa) pa.style.backgroundImage = "url('" + dataUrl + "')";
 							if ($id("profileAvatarInitial")) $id("profileAvatarInitial").style.display = "none";
 							var chip = $id("userAvatar");
-							if (chip) { chip.style.backgroundImage = "url('" + dataUrl + "')"; chip.style.backgroundSize = "cover"; chip.textContent = ""; }
+							if (chip) { chip.style.backgroundImage = "url('" + dataUrl + "')"; chip.style.backgroundSize = "cover"; chip.style.backgroundPosition = "center"; chip.textContent = ""; }
+							var ddAv = $id("dropdownAvatar");
+							if (ddAv) { ddAv.style.backgroundImage = "url('" + dataUrl + "')"; ddAv.style.backgroundSize = "cover"; ddAv.style.backgroundPosition = "center"; ddAv.textContent = ""; }
 						} else if (window.notify) {
 							window.notify((d && d.error) || "Couldn't save picture", "error");
 						}
@@ -4352,12 +4396,29 @@
 
 		var user = getCurrentUserObj();
 		var displayName = user.display_name || user.username;
+		var initial = (displayName.charAt(0) || "?").toUpperCase();
 
 		document.getElementById("userFirstName").textContent = displayName;
 
-		var avatarEl = document.getElementById("userAvatar");
-		avatarEl.textContent = displayName.charAt(0).toUpperCase();
-		avatarEl.style.backgroundColor = user.avatar_color || "#1DB954";
+		// Show the account photo when there is one, otherwise a coloured initial.
+		// (Previously the header always showed the initial, so an uploaded
+		// picture only appeared until the next reload.)
+		function paintAvatar(el, size) {
+			if (!el) return;
+			if (user.avatar_url) {
+				el.style.backgroundImage = "url('" + user.avatar_url + "')";
+				el.style.backgroundSize = "cover";
+				el.style.backgroundPosition = "center";
+				el.style.backgroundRepeat = "no-repeat";
+				el.textContent = "";
+			} else {
+				el.style.backgroundImage = "none";
+				el.style.backgroundColor = user.avatar_color || "#1DB954";
+				el.textContent = initial;
+			}
+		}
+		paintAvatar(document.getElementById("userAvatar"));
+		paintAvatar(document.getElementById("dropdownAvatar"));
 
 		document.getElementById("dropdownName").textContent = displayName;
 		document.getElementById("dropdownEmail").textContent = user.email;
