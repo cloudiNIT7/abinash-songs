@@ -812,6 +812,9 @@
 		.name-modal__btn--ghost:hover { color:#fff; }
 		.name-modal__btn--primary { background:var(--sp-green); color:#000; }
 		.name-modal__btn--primary:hover { background:var(--sp-green-h); transform:scale(1.04); }
+		.name-modal__btn--danger { background:#f15e6c; color:#fff; }
+		.name-modal__btn--danger:hover { background:#ff7080; transform:scale(1.04); }
+		.name-modal__msg { color:#b3b3b3; font-size:14px; line-height:1.5; }
 		.album-card { background:#181818; border-radius:12px; padding:12px; cursor:pointer; transition:background .2s ease, transform .2s ease; }
 		.album-card:hover { background:#242424; transform:translateY(-4px); }
 		.album-card__art { position:relative; aspect-ratio:1/1; border-radius:8px; overflow:hidden; background:#2a2a2a; box-shadow:0 8px 22px rgba(0,0,0,.5); margin-bottom:10px; }
@@ -3538,8 +3541,11 @@
 					});
 					card.querySelector(".lib-card__del").addEventListener("click", function (e) {
 						e.stopPropagation();
-						if (!window.confirm('Delete the playlist "' + pl.name + '"?')) return;
-						apiPost("/api/me/playlists/delete", { id: pl.id }).then(renderProfilePlaylists);
+						confirmModal('Delete the playlist "' + pl.name + '"? This can\u2019t be undone.', "Delete", "Delete playlist")
+							.then(function (yes) {
+								if (!yes) return;
+								apiPost("/api/me/playlists/delete", { id: pl.id }).then(renderProfilePlaylists);
+							});
 					});
 					host.appendChild(card);
 				});
@@ -3574,6 +3580,37 @@
 					else if (e.key === "Escape") { finish(null); }
 				};
 				modal.onclick = function (e) { if (e.target === modal) finish(null); };
+			});
+		}
+
+		// In-page confirm (no window.confirm). Resolves true/false.
+		function confirmModal(message, okLabel, title) {
+			return new Promise(function (resolve) {
+				var modal = $id("confirmModal"), ok = $id("confirmOk"), cancel = $id("confirmCancel"),
+					msg = $id("confirmMsg"), head = $id("confirmTitle");
+				if (!modal) { resolve(false); return; }
+				if (msg) msg.textContent = message || "Are you sure?";
+				if (head) head.textContent = title || "Are you sure?";
+				if (ok) ok.textContent = okLabel || "Delete";
+				modal.classList.add("is-open");
+				modal.setAttribute("aria-hidden", "false");
+				if (window.CSNav && !window.CSNav.has("confirm")) window.CSNav.push("confirm", function () { finish(false); });
+				setTimeout(function () { if (ok) ok.focus(); }, 40);
+
+				function finish(val) {
+					modal.classList.remove("is-open");
+					modal.setAttribute("aria-hidden", "true");
+					ok.onclick = cancel.onclick = modal.onclick = document.onkeydown = null;
+					if (val !== null && window.CSNav && window.CSNav.has("confirm")) window.CSNav.back("confirm");
+					resolve(!!val);
+				}
+				ok.onclick = function () { finish(true); };
+				cancel.onclick = function () { finish(false); };
+				modal.onclick = function (e) { if (e.target === modal) finish(false); };
+				document.onkeydown = function (e) {
+					if (e.key === "Escape") finish(false);
+					else if (e.key === "Enter") finish(true);
+				};
 			});
 		}
 
@@ -4098,6 +4135,18 @@
     <div class="name-modal__actions">
       <button id="nameModalCancel" type="button" class="name-modal__btn name-modal__btn--ghost">Cancel</button>
       <button id="nameModalOk" type="button" class="name-modal__btn name-modal__btn--primary">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm modal (replaces window.confirm) -->
+<div id="confirmModal" class="name-modal" aria-hidden="true">
+  <div class="name-modal__panel">
+    <div class="name-modal__title" id="confirmTitle">Are you sure?</div>
+    <div class="name-modal__msg" id="confirmMsg"></div>
+    <div class="name-modal__actions">
+      <button id="confirmCancel" type="button" class="name-modal__btn name-modal__btn--ghost">Cancel</button>
+      <button id="confirmOk" type="button" class="name-modal__btn name-modal__btn--danger">Delete</button>
     </div>
   </div>
 </div>
