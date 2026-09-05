@@ -22,15 +22,18 @@ echo "2/6 link resources + manifest"
 	--manifest AndroidManifest.xml \
 	-R build/res.zip \
 	--java build/gen \
-	--min-sdk-version 23 --target-sdk-version 34 \
+	--min-sdk-version 21 --target-sdk-version 34 \
 	--auto-add-overlay
 
 echo "3/6 compile Java"
-javac -source 17 -target 17 -d build/classes -classpath "$PLATFORM" \
+javac -source 8 -target 8 -d build/classes -classpath "$PLATFORM" \
+	-bootclasspath "$PLATFORM" \
+	$(find src build/gen -name "*.java") 2>/dev/null || \
+javac -source 8 -target 8 -d build/classes -classpath "$PLATFORM" \
 	$(find src build/gen -name "*.java")
 
 echo "4/6 dex"
-"$BT/d8" --lib "$PLATFORM" --min-api 23 --output build \
+"$BT/d8" --lib "$PLATFORM" --min-api 21 --output build \
 	$(find build/classes -name "*.class")
 
 echo "5/6 package dex into apk + align"
