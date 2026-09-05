@@ -2380,10 +2380,6 @@
 <script>
 	(function () {
 		var FALLBACK_ART = "../Spotify-songs/icon.png";
-		var RECENT_KEY = "saavn:recent";
-		var PLAYS_KEY = "cloudsongs:plays";     // trackId -> {track, count}
-		var SEARCH_KEY = "cloudsongs:searches"; // recent search terms
-		var LANG_KEY = "cloudsongs:lang";
 		var RECENT_MAX = 40;
 		var VISIBLE_COUNT = 5;
 		// Rows revealed per "Show More" click, and the queue of playlists that
@@ -3205,7 +3201,12 @@
 			if (!lang) return;
 			currentLang = lang.code;
 			PLAYLISTS = lang.playlists || [];
-			try { localStorage.setItem(LANG_KEY, currentLang); } catch (e) {}
+			// Persist the choice on the account (server), not the browser.
+			if (!skipLoad) {
+				apiPost("/api/me/lang", { lang: currentLang });
+				var u = (typeof getCurrentUserObj === "function" && getCurrentUserObj());
+				if (u) u.pref_lang = currentLang;
+			}
 			renderLangChips();
 			renderPlaylistGrid();
 			// Picking a language opens that language's latest songs straight away.
@@ -3720,19 +3721,22 @@
 		};
 
 		// Load this account's library up front so history/likes/most-played
-		// are ready. Re-render the home rows once it arrives.
+		// are ready. Re-render the home rows once it arrives, and apply the
+		// account's saved language (highlight only; nothing auto-plays).
 		loadLibrary().then(function () {
+			var u = (typeof getCurrentUserObj === "function" && getCurrentUserObj());
+			if (u && u.pref_lang && langByCode(u.pref_lang) && u.pref_lang !== currentLang) {
+				currentLang = u.pref_lang;
+				PLAYLISTS = (langByCode(u.pref_lang).playlists) || [];
+				renderLangChips();
+			}
 			if (viewLanguagesEl && !viewLanguagesEl.hidden) renderForYou();
 		});
 
-		// Boot: restore the last language (default Hindi) and load its first
-		// playlist so the page always opens with something playable.
-		var saved = null;
-		try { saved = localStorage.getItem(LANG_KEY); } catch (e) {}
+		// Boot: default to the first language; the account's saved language
+		// (if any) is applied once its profile has loaded from the server.
 		if (LANGS.length) {
-			// Remember the last language for highlighting, but open on the
-			// banner grid so the user picks - nothing loads until they do.
-			selectLang(saved && langByCode(saved) ? saved : LANGS[0].code, true);
+			selectLang(LANGS[0].code, true);
 			showLanguagesView();
 		} else {
 			showSongsView();

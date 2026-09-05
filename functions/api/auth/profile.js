@@ -24,7 +24,7 @@ export async function onRequestPost({ request, env }) {
 	).bind(displayName, bio, colour || "#1DB954", new Date().toISOString(), user.id).run();
 
 	const updated = await env.DB.prepare(
-		"SELECT id, email, username, display_name, bio, avatar_color, avatar_url, profile_complete, created_at FROM users WHERE id = ?",
+		"SELECT id, email, username, display_name, bio, avatar_color, avatar_url, pref_lang, profile_complete, created_at FROM users WHERE id = ?",
 	).bind(user.id).first();
 
 	return reply({ ok: true, user: publicUser(updated) });
