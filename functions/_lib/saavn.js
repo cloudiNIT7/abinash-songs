@@ -187,6 +187,30 @@ export async function getLyrics(id) {
 	return data ? data.lyrics : null;
 }
 
+/**
+ * Browse by a mood/genre/artist term. Prefers a matching editorial playlist
+ * (rich ~50-song result); falls back to the individual songs the autocomplete
+ * returns. Used by mood chips and artist chips on the home view.
+ */
+export async function browseTracks(query, lyrics) {
+	const res = await upstreamJson(ENDPOINTS.search + encodeURIComponent(query), 300);
+	const playlists = (res && res.playlists && res.playlists.data) || [];
+	for (let i = 0; i < playlists.length; i++) {
+		const id = playlists[i].id || playlists[i].playlistid;
+		if (!id) continue;
+		try {
+			const full = await getPlaylist(id, lyrics);
+			if (full && Array.isArray(full.songs) && full.songs.length) {
+				return { label: playlists[i].title || query, songs: full.songs };
+			}
+		} catch (e) { /* try songs fallback */ }
+		break;   // only the top playlist match
+	}
+	const hits = (res && res.songs && res.songs.data) || [];
+	const songs = await Promise.all(hits.map((s) => getSong(s.id, lyrics)));
+	return { label: query, songs: songs.filter(Boolean) };
+}
+
 /* ---------- response helpers ---------- */
 
 export function json(body, { status = 200, maxAge = 60 } = {}) {

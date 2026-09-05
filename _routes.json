@@ -12,6 +12,8 @@
 		"/lyrics/*",
 		"/result",
 		"/result/*",
+		"/browse",
+		"/browse/*",
 		"/functions/*",
 		"/node_modules/*",
 		"/package.json",

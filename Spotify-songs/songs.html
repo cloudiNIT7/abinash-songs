@@ -3214,7 +3214,7 @@
 			showSongsView();
 			var lang = langByCode(currentLang);
 			var q = query + (lang ? " " + lang.label : "");
-			return load("/song/?query=" + encodeURIComponent(q) + "&songdata=true",
+			return load("/browse/?query=" + encodeURIComponent(q),
 				"Loading " + label + "\u2026", label, { shuffleDaily: true });
 		}
 
