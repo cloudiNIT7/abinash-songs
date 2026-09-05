@@ -128,7 +128,7 @@
 				if (!result.ok) { errorEl.textContent = result.message; return; }
 				// Verified + logged in. New accounts go to profile setup.
 				if (!result.user || !result.user.profile_completed) {
-					window.location.href = "./profile-setup.html";
+					window.location.href = "./profile.html";
 				} else {
 					window.location.href = "./Spotify-songs/songs.html";
 				}

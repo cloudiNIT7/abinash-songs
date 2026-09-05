@@ -1,0 +1,5 @@
+# Cloudflare Pages redirects.
+# The profile page moved from /profile-setup to the cleaner /profile path;
+# keep the old URLs working for existing links and bookmarks.
+/profile-setup /profile 301
+/profile-setup.html /profile 301

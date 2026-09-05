@@ -243,7 +243,7 @@
 			// If already logged in, skip straight past the form.
 			authReady().then(() => {
 				if (isLoggedIn()) {
-					window.location.replace(isProfileComplete() ? "./Spotify-songs/songs.html" : "./profile-setup.html");
+					window.location.replace(isProfileComplete() ? "./Spotify-songs/songs.html" : "./profile.html");
 				}
 			});
 
@@ -290,7 +290,7 @@
 				// First-time (or not-yet-completed) accounts go through the
 				// one-time profile setup screen before reaching the app.
 				if (!result.user || !result.user.profile_completed) {
-					window.location.replace("./profile-setup.html");
+					window.location.replace("./profile.html");
 				} else {
 					window.location.replace("./Spotify-songs/songs.html");
 				}

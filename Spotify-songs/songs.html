@@ -1578,7 +1578,7 @@
 					</li>
 					<li role="separator" class="divider"></li>
 					<li><a href="#" id="openProfileLink">Your Library</a></li>
-					<li><a href="../profile-setup.html?next=./Spotify-songs/songs.html">Edit profile</a></li>
+					<li><a href="../profile.html?next=./Spotify-songs/songs.html">Edit profile</a></li>
 					<li><a href="#" id="appLogoutLink">Log Out</a></li>
 				</ul>
 			</div>
@@ -4157,7 +4157,7 @@
 		}
 		if (!isProfileComplete()) {
 			// New (or not-yet-set-up) accounts finish setup before they land here.
-			window.location.replace("../profile-setup.html?next=./Spotify-songs/songs.html");
+			window.location.replace("../profile.html?next=./Spotify-songs/songs.html");
 			return;
 		}
 
