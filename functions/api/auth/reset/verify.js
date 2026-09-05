@@ -14,5 +14,9 @@ export async function onRequestPost({ request, env }) {
 	const result = await checkOtp(env, email, code);
 	if (!result.ok) return badRequest(result.error, 401);
 
-	return reply({ ok: true, resetToken: await createResetToken(env, email) });
+	// Bind the token to the current password salt so it can be used exactly
+	// once: after the password changes, the salt changes and the token dies.
+	const user = await env.DB.prepare("SELECT password_salt FROM users WHERE email = ?").bind(email).first();
+	const bind = user ? user.password_salt : "";
+	return reply({ ok: true, resetToken: await createResetToken(env, email, bind) });
 }

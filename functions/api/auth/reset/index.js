@@ -16,13 +16,18 @@ export async function onRequestPost({ request, env }) {
 	const problem = validateCredentials({ email, password });
 	if (problem) return badRequest(problem);
 
-	const tokenEmail = await verifyResetToken(env, token);
-	if (!tokenEmail || tokenEmail !== email) {
+	const tokenInfo = await verifyResetToken(env, token);
+	if (!tokenInfo || tokenInfo.email !== email) {
 		return badRequest("This reset session has expired. Please start again.", 401);
 	}
 
 	const user = await env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(email).first();
 	if (!user) return badRequest("No account found for that email.", 404);
+	// The token is bound to the password it was issued against; once the
+	// password changes the binding no longer matches, so it can't be replayed.
+	if (tokenInfo.bind !== user.password_salt) {
+		return badRequest("This reset link has already been used. Please start again.", 401);
+	}
 
 	const salt = randomHex(16);
 	const passwordHash = await hashPassword(password, salt);

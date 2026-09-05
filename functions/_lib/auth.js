@@ -106,16 +106,18 @@ export function clearSessionCookie() {
  * be used in place of the other. */
 const RESET_TTL_SECONDS = 15 * 60;
 
-export async function createResetToken(env, email) {
+export async function createResetToken(env, email, bind) {
 	const payload = b64urlEncode(enc.encode(JSON.stringify({
 		email,
 		p: "reset",
+		b: bind || "",                         // binds the token to the current password
 		exp: Math.floor(Date.now() / 1000) + RESET_TTL_SECONDS,
 	})));
 	const sig = b64urlEncode(await hmac(sessionSecret(env), "reset." + payload));
 	return `${payload}.${sig}`;
 }
 
+/** Returns { email, bind } for a valid token, or null. */
 export async function verifyResetToken(env, token) {
 	if (!token || !token.includes(".")) return null;
 	const [payload, sig] = token.split(".");
@@ -136,7 +138,7 @@ export async function verifyResetToken(env, token) {
 		claims.exp < Math.floor(Date.now() / 1000)) {
 		return null;
 	}
-	return claims.email;
+	return { email: claims.email, bind: claims.b || "" };
 }
 
 function sessionSecret(env) {
