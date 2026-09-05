@@ -1024,6 +1024,45 @@
 			display:grid; gap:16px; padding:2px 26px 14px;
 			grid-template-columns:repeat(auto-fill, minmax(160px, 1fr));
 		}
+		/* Mood / genre chips below the languages */
+		.mood-chips {
+			display:grid; gap:12px; padding:2px 26px 26px;
+			grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));
+		}
+		.mood-chip {
+			position:relative; border:0; cursor:pointer; text-align:left;
+			border-radius:12px; overflow:hidden; padding:16px 14px; min-height:84px;
+			color:#fff; box-shadow:0 6px 16px rgba(0,0,0,.4);
+			transition:transform .15s ease, box-shadow .15s ease;
+		}
+		.mood-chip:hover { transform:translateY(-3px); box-shadow:0 12px 26px rgba(0,0,0,.5); }
+		.mood-chip__emoji { font-size:26px; display:block; margin-bottom:8px; filter:drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+		.mood-chip__label { font-size:16px; font-weight:800; letter-spacing:.2px; text-shadow:0 1px 4px rgba(0,0,0,.4); }
+		/* Popular artists row */
+		.artist-chips {
+			display:grid; gap:14px; padding:2px 26px 30px;
+			grid-template-columns:repeat(auto-fill, minmax(110px, 1fr));
+		}
+		.artist-chip {
+			background:none; border:0; cursor:pointer; text-align:center; padding:0;
+			display:flex; flex-direction:column; align-items:center; gap:8px;
+		}
+		.artist-chip__ava {
+			width:96px; height:96px; border-radius:50%; overflow:hidden;
+			display:flex; align-items:center; justify-content:center;
+			color:#fff; font-size:34px; font-weight:800;
+			box-shadow:0 8px 20px rgba(0,0,0,.5); transition:transform .15s ease, box-shadow .15s ease;
+		}
+		.artist-chip:hover .artist-chip__ava { transform:scale(1.05); box-shadow:0 12px 26px rgba(0,0,0,.6); }
+		.artist-chip__name {
+			color:#eaeaea; font-size:13px; font-weight:600; max-width:100%;
+			overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+		}
+		@media (max-width:768px){
+			.mood-chips { padding:2px 12px 20px; gap:10px; grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); }
+			.artist-chips { padding:2px 12px 24px; gap:12px; grid-template-columns:repeat(auto-fill, minmax(84px,1fr)); }
+			.artist-chip__ava { width:76px; height:76px; font-size:28px; }
+		}
 		.lang-card {
 			position:relative; display:flex; flex-direction:column;
 			padding:0; border:0; cursor:pointer; text-align:left;
@@ -1634,6 +1673,10 @@
                   <div id="forYou" class="for-you"></div>
                   <div class="section-title">Choose a language</div>
                   <div class="lang-chips" id="langChips" role="tablist" aria-label="Languages"></div>
+                  <div class="section-title">Moods &amp; genres</div>
+                  <div class="mood-chips" id="moodChips"></div>
+                  <div class="section-title">Popular artists</div>
+                  <div class="artist-chips" id="artistChips"></div>
                 </div>
 
                 <!-- ---- View 2: one language's songs (or search results) ----
@@ -3139,6 +3182,77 @@
 		var currentPlaylistUrl = null;
 		var PLAY_SVG = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7L8 5z"/></svg>';
 
+		/* ---------- moods / genres + popular artists ---------- */
+
+		var MOODS = [
+			{ label: "Love",       q: "romantic love hits",  emoji: "\u2764\uFE0F", g: "linear-gradient(135deg,#ff5f6d,#c9184a)" },
+			{ label: "Sad",        q: "sad emotional",        emoji: "\uD83D\uDE22", g: "linear-gradient(135deg,#4b6cb7,#182848)" },
+			{ label: "Rock",       q: "rock",                 emoji: "\uD83C\uDFB8", g: "linear-gradient(135deg,#434343,#b31217)" },
+			{ label: "Party",      q: "party dance hits",     emoji: "\uD83C\uDF89", g: "linear-gradient(135deg,#f7971e,#ec008c)" },
+			{ label: "Dance",      q: "dance edm",            emoji: "\uD83D\uDC83", g: "linear-gradient(135deg,#8e2de2,#4a00e0)" },
+			{ label: "Chill",      q: "chill lofi",           emoji: "\uD83C\uDF19", g: "linear-gradient(135deg,#2b5876,#4e4376)" },
+			{ label: "Workout",    q: "workout gym",          emoji: "\uD83D\uDCAA", g: "linear-gradient(135deg,#f12711,#f5af19)" },
+			{ label: "Happy",      q: "feel good happy",      emoji: "\uD83D\uDE04", g: "linear-gradient(135deg,#f7b733,#fc4a1a)" },
+			{ label: "Action",     q: "mass action beats",    emoji: "\uD83D\uDD25", g: "linear-gradient(135deg,#cb2d3e,#ef473a)" },
+			{ label: "Devotional", q: "devotional bhakti",    emoji: "\uD83D\uDE4F", g: "linear-gradient(135deg,#ffb75e,#ed8f03)" },
+			{ label: "Travel",     q: "travel road trip",     emoji: "\uD83D\uDE97", g: "linear-gradient(135deg,#11998e,#38ef7d)" },
+			{ label: "Focus",      q: "focus study",          emoji: "\uD83C\uDFA7", g: "linear-gradient(135deg,#141e30,#243b55)" },
+			{ label: "Retro 90s",  q: "90s hits",             emoji: "\uD83D\uDCFC", g: "linear-gradient(135deg,#c94b4b,#4b134f)" },
+			{ label: "Item",       q: "item dance number",    emoji: "\u2728", g: "linear-gradient(135deg,#e1eec3,#f05053)" },
+		];
+
+		var ARTISTS = [
+			"Arijit Singh", "Sid Sriram", "Anirudh Ravichander", "A.R. Rahman",
+			"Shreya Ghoshal", "Diljit Dosanjh", "Pritam", "Yuvan Shankar Raja",
+			"Devi Sri Prasad", "Neha Kakkar", "Atif Aslam", "Badshah",
+		];
+
+		// Open a browse result (mood or artist) as a fresh, daily-shuffled list.
+		function openBrowse(query, label) {
+			if (window.setMobileTab) window.setMobileTab("songs");
+			moreQueue = []; fetchingMore = false;
+			showSongsView();
+			var lang = langByCode(currentLang);
+			var q = query + (lang ? " " + lang.label : "");
+			return load("/song/?query=" + encodeURIComponent(q) + "&songdata=true",
+				"Loading " + label + "\u2026", label, { shuffleDaily: true });
+		}
+
+		function renderMoods() {
+			var host = document.getElementById("moodChips");
+			if (!host) return;
+			host.innerHTML = "";
+			MOODS.forEach(function (m) {
+				var b = document.createElement("button");
+				b.type = "button";
+				b.className = "mood-chip";
+				b.style.background = m.g;
+				b.innerHTML = '<span class="mood-chip__emoji"></span><span class="mood-chip__label"></span>';
+				b.querySelector(".mood-chip__emoji").textContent = m.emoji;
+				b.querySelector(".mood-chip__label").textContent = m.label;
+				b.addEventListener("click", function () { openBrowse(m.q, m.label); });
+				host.appendChild(b);
+			});
+		}
+
+		function renderArtists() {
+			var host = document.getElementById("artistChips");
+			if (!host) return;
+			host.innerHTML = "";
+			ARTISTS.forEach(function (name) {
+				var b = document.createElement("button");
+				b.type = "button";
+				b.className = "artist-chip";
+				b.innerHTML = '<span class="artist-chip__ava"></span><span class="artist-chip__name"></span>';
+				var ava = b.querySelector(".artist-chip__ava");
+				ava.textContent = name.charAt(0).toUpperCase();
+				ava.style.background = gradientFor(name);
+				b.querySelector(".artist-chip__name").textContent = name;
+				b.addEventListener("click", function () { openBrowse(name, name); });
+				host.appendChild(b);
+			});
+		}
+
 		function renderLangChips() {
 			if (!langChipsEl) return;
 			langChipsEl.innerHTML = "";
@@ -3843,6 +3957,9 @@
 			showSongsView();
 			placeholder("Language catalogue failed to load. Search for a song instead.");
 		}
+		// Moods and artists are static browse shortcuts, rendered once.
+		renderMoods();
+		renderArtists();
 	})();
 </script>
 
