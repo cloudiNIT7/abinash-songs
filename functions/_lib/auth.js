@@ -179,7 +179,7 @@ export async function currentUser(request, env) {
 	if (!claims || !claims.uid || !claims.exp || claims.exp < Math.floor(Date.now() / 1000)) return null;
 
 	return env.DB.prepare(
-		"SELECT id, email, username, display_name, bio, avatar_color, profile_complete, created_at FROM users WHERE id = ?",
+		"SELECT id, email, username, display_name, bio, avatar_color, avatar_url, profile_complete, created_at FROM users WHERE id = ?",
 	).bind(claims.uid).first();
 }
 
@@ -229,6 +229,7 @@ export function publicUser(row) {
 		display_name: row.display_name || row.username,
 		bio: row.bio || "",
 		avatar_color: row.avatar_color || "#1DB954",
+		avatar_url: row.avatar_url || "",
 		profile_complete: !!row.profile_complete,
 		created_at: row.created_at,
 	};
