@@ -971,18 +971,24 @@
 				flex-wrap:nowrap !important;
 			}
 			.app-topbar .brand { margin-right:0; font-size:15px; flex:0 0 auto; }
+			.app-topbar .brand__logo { width:30px; height:30px; }
 			/* Wordmark is dropped on phones; the logo alone identifies the app
 			   and the space goes to the search box instead. */
 			.brand__text { display:none; }
 			.top-nav { display:none; }
 			/* nav collapses on mobile, but search stays — it's the main entry point */
-			.top-search { flex:1 1 auto; min-width:0; margin-left:2px; }
+			.top-search { flex:1 1 auto; min-width:0; margin-left:2px; height:40px; box-sizing:border-box; }
 			.top-search__input { padding-left:12px; font-size:13px; }
 			.spacer { display:none; }
-			.user { gap:8px !important; flex:0 0 auto; }
+			/* Bell + avatar aligned on the same centre line as the search box */
+			.user { gap:6px !important; flex:0 0 auto; align-items:center; }
 			.user-chip__name { display:none; }
 			.user-chip__chev { display:none; }
-			.user-chip { padding:3px; }
+			.user-chip { padding:0; background:none; }
+			.user-chip:hover { background:none; }
+			.icon-btn { padding:7px; }
+			.icon-btn svg { width:24px; height:24px; }
+			.user-chip__avatar { width:34px; height:34px; font-size:14px; }
 			.notif-panel { left:12px; right:12px; width:auto; top:62px; }
 
 			/* Bottom bar becomes a compact mini-player:
