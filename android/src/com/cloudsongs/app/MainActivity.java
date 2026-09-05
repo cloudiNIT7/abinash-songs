@@ -165,6 +165,25 @@ public class MainActivity extends Activity {
 			"function state(){try{var a=A();if(a&&window.AndroidMedia){" +
 			"AndroidMedia.updatePlayback(!a.paused,Math.floor((a.currentTime||0)*1000),Math.floor((a.duration||0)*1000));}}catch(e){}}" +
 			"function both(){meta();state();}" +
+			// The page only defines window.CloudSongsControl inside its
+			// setupMediaSession(), which bails out early because Android WebView
+			// has no navigator.mediaSession. Install a working implementation
+			// here that drives the player's real transport buttons, so the
+			// notification / lock-screen controls actually do something.
+			"function btn(){for(var i=0;i<arguments.length;i++){" +
+			"var a=arguments[i];var e=a.charAt(0)==='.'?document.querySelector(a):document.getElementById(a);" +
+			"if(e)return e;}return null;}" +
+			"var PLAY=function(){return btn('npPlay','.current-track__actions .play');};" +
+			"var NEXT=function(){return btn('npNext','ctNext');};" +
+			"var PREV=function(){return btn('npPrev','ctPrev');};" +
+			"if(!window.CloudSongsControl){window.CloudSongsControl={" +
+			"toggle:function(){var b=PLAY();if(b){b.click();return;}var a=A();if(a){if(a.paused)a.play();else a.pause();}}," +
+			"play:function(){var a=A();if(!a||a.paused)this.toggle();}," +
+			"pause:function(){var a=A();if(a&&!a.paused)this.toggle();}," +
+			"next:function(){var b=NEXT();if(b)b.click();}," +
+			"prev:function(){var b=PREV();if(b)b.click();}," +
+			"seek:function(ms){var a=A();if(a){try{a.currentTime=(ms||0)/1000;}catch(e){}}}" +
+			"};}" +
 			"document.addEventListener('play',both,true);" +
 			"document.addEventListener('pause',both,true);" +
 			"document.addEventListener('loadedmetadata',both,true);" +
