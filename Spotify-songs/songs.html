@@ -982,6 +982,14 @@
 			.current-track__center { flex:0 0 auto; margin:0; max-width:none; }
 			.current-track__center .current-track__progress { display:none; }
 			.current-track__center .current-track__actions { gap:18px !important; }
+			/* Keep the transport buttons from being squeezed out of shape:
+			   the play/pause circle must stay a perfect circle on phones. */
+			.current-track__center .current-track__actions .ct-btn { flex:0 0 auto; }
+			.current-track__center .current-track__actions .play {
+				width:44px; height:44px; min-width:44px; min-height:44px;
+				border-radius:50%; box-sizing:border-box; padding:0;
+			}
+			.current-track__center .current-track__actions .play svg { width:22px; height:22px; }
 			#shuffleBtn, #repeatBtn { display:none; }
 			.current-track__options { display:none; }
 		}
