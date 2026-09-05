@@ -18,6 +18,40 @@
 				background-color: black;
 				position: relative;
 			}
+			/* ---- Help / FAQ ---- */
+			.faq-section { padding: 8px 0 4px; }
+			.faq-section > h2 {
+				font-size: 22px; margin: 28px 16px 6px; color: #121212;
+			}
+			.faq-item { border-bottom: 1px solid #e0e0e0; }
+			.faq-q {
+				width: 100%; text-align: left; background: none; border: 0; cursor: pointer;
+				font-size: 18px; font-weight: 700; color: #121212;
+				padding: 18px 44px 18px 16px; position: relative;
+				font-family: inherit; line-height: 1.4;
+			}
+			.faq-q::after {
+				content: "+"; position: absolute; right: 18px; top: 50%;
+				transform: translateY(-50%); font-size: 24px; font-weight: 400; color: #2d46b9;
+			}
+			.faq-q.active::after { content: "\2013"; }
+			.faq-q:hover { color: #2d46b9; }
+			.faq-a {
+				max-height: 0; overflow: hidden; transition: max-height .25s ease;
+			}
+			.faq-a > div { padding: 0 16px 18px; }
+			.faq-a p, .faq-a li {
+				color: #333; font-size: 16px; line-height: 1.7; margin: 0 0 10px;
+			}
+			.faq-a ul, .faq-a ol { margin: 0 0 10px; padding-left: 22px; }
+			.faq-a strong { color: #121212; }
+			.faq-empty {
+				display: none; color: #555; font-size: 16px; padding: 20px 16px; text-align: center;
+			}
+			.faq-note {
+				background: #fff4d6; border: 1px solid #f0d78a; border-radius: 8px;
+				padding: 10px 12px; color: #6a5300; font-size: 15px;
+			}
 		</style>
 	</head>
 	<body>
@@ -29,91 +63,300 @@
 		<div class="Search">
 			<div class="container">
 				<div class="search-box">
-<h1 class="title-1">How can we <br> help you?</h1>
-<div class="searchInputBox">
-<div class="seacrhIcon">
-<svg xmlns="http://www.w3.org/2000/svg" role="img" focusable="false" height="24" width="24" viewBox="0 0 24 24" class=" " aria-label="Search icon">
-<line x1="15.54" y1="15.54" x2="20.41" y2="20.41" stroke="#181818"/>
-<circle cx="10.5" cy="10.5" r="7" fill="none" stroke="#181818"/>
-</svg>
-</div>
-<input type="text" class="search-input" aria-label="Search" placeholder="Search" autocomplete="off" value="">
-</div>
-</div>
-<div class="top-solution">
-<div class="top-solution-inner">
-<h3>ACCOUNT HELP</h3>
-<a href="">I don't remember the login information</a>
-</div>
-<div class="top-solution-inner">
-<h3>MEMBERSHIP OPTIONS</h3>
-<a href="">Start or <br> join a family plan</a>
-</div>
-<div class="top-solution-inner">
-<h3>ACCOUNT HELP</h3>
-<a href="">I can't reset the password</a>
-</div>
-<div class="top-solution-inner">
-<h3>PRIVACY AND SECURITY</h3>
-<a href="">Is this Cloud Songs email real <br>?</a>
-</div>
-</div>
-</div>
-</div>
-<!--Search-->
+					<h1 class="title-1">How can we <br> help you?</h1>
+					<div class="searchInputBox">
+						<div class="seacrhIcon">
+							<svg xmlns="http://www.w3.org/2000/svg" role="img" focusable="false" height="24" width="24" viewBox="0 0 24 24" aria-label="Search icon">
+								<line x1="15.54" y1="15.54" x2="20.41" y2="20.41" stroke="#181818"/>
+								<circle cx="10.5" cy="10.5" r="7" fill="none" stroke="#181818"/>
+							</svg>
+						</div>
+						<input type="text" id="helpSearch" class="search-input" aria-label="Search help" placeholder="Search help articles" autocomplete="off" value="">
+					</div>
+				</div>
+				<div class="top-solution">
+					<div class="top-solution-inner">
+						<h3>Getting started</h3>
+						<a href="#getting-started">What is Cloud Songs and is it free?</a>
+					</div>
+					<div class="top-solution-inner">
+						<h3>Account help</h3>
+						<a href="#accounts">Sign up, verify email &amp; log in</a>
+					</div>
+					<div class="top-solution-inner">
+						<h3>Playing music</h3>
+						<a href="#playing">Search, play and control songs</a>
+					</div>
+					<div class="top-solution-inner">
+						<h3>Troubleshooting</h3>
+						<a href="#trouble">A song won't play or the page looks off</a>
+					</div>
+				</div>
+			</div>
+		</div>
+		<!--Search-->
 
-<!--Links-->
-<div class="Help-links">
-<div class="container">
-<div class="links_boxs">
-<div class="link_box">
-<h3 class="title-1 collapsible">Account and Payment</h3>
-<span>
-<a href="">Account Help</a>
-<a href="">Payment Assistance</a>
-<a href="">Membership Options</a>
-<a href="">Premium for Family</a>
-<a href="">Premium Duo</a>
-<a href="">Premium for Student</a>
-<a href="">Privacy and Security</a>
-<a href="">Online dispute resolution</a>
-</span>
-</div>
-<div class="link_box">
-<h3 class="title-1 collapsible">Using Cloud Songs</h3>
-<span>
-<a href="">Get Started</a>
-<a href="">Playlists</a>
-<a href="">Features</a>
-<a href="">System and Settings Information</a>
-<a href="">Troubleshooting</a>
-</span>
-</div>
-<div class="link_box">
-<h3 class="title-1 collapsible">Listen Anywhere</h3>
-<span>
-<a href="">Speakers</a>
-<a href="">TVs</a>
-<a href="">Cars</a>
-<a href="">Games</a>
-<a href="">Smart watches</a>
-<a href="">Smart Screens</a>
-<a href="">Voice assistants</a>
-</span>
-</div>
-</div>
-</div>
-</div>
-<!--Links-->
+		<!--FAQ-->
+		<div class="Help-links">
+			<div class="container" id="faqRoot">
 
-<!--Visit Community-->
-<div class="visitCommunity">
-<div class="container">
-<h1 class="title-1">Visit Community</h1>
-<p>Do you have questions? Find answers to your questions in our Community of expert fans from around the world!</p>
-<a class="black_btn" href="#">Find Answers</a>
-</div>
-</div>
+				<div class="faq-section" id="getting-started">
+					<h2>Getting started</h2>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">What is Cloud Songs?</button>
+						<div class="faq-a"><div>
+							<p>Cloud Songs is a free web music player. You can search for songs, browse editorial playlists by language, play full tracks, and keep a recently-played history. It runs entirely in your browser on both phones and laptops &mdash; there's nothing to install.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">Is Cloud Songs free?</button>
+						<div class="faq-a"><div>
+							<p>Yes. Searching and streaming are completely free. You only need a free account so your profile and sign-in work across devices.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">Do I need to install an app?</button>
+						<div class="faq-a"><div>
+							<p>No. Cloud Songs works in any modern browser (Chrome, Safari, Edge, Firefox). If you'd like an app-like shortcut, open the site and use your browser's <strong>Add to Home Screen</strong> (mobile) or <strong>Install</strong> option (desktop).</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">Which devices and browsers are supported?</button>
+						<div class="faq-a"><div>
+							<p>Any up-to-date browser on a phone, tablet, or computer. The layout adapts automatically &mdash; phones get a bottom tab bar (Home, Playlists, Recently played), while laptops show the same controls in a top bar and the bottom player.</p>
+						</div></div>
+					</div>
+				</div>
+
+				<div class="faq-section" id="accounts">
+					<h2>Account and sign-in</h2>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">How do I create an account?</button>
+						<div class="faq-a"><div>
+							<p>Open <strong>Log in</strong>, switch to the <strong>Sign Up</strong> tab, then enter your name, email, and a password of at least 8 characters. We'll email you a 6-digit code &mdash; enter it to verify your email, then set up your profile and you're in.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">Why do I have to verify my email?</button>
+						<div class="faq-a"><div>
+							<p>Verification confirms the address is really yours and keeps your account secure. After signing up you'll see a code-entry screen; the code we email is valid for <strong>10 minutes</strong>.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">I didn't receive the verification code.</button>
+						<div class="faq-a"><div>
+							<ul>
+								<li>Check your <strong>Spam</strong> or <strong>Promotions</strong> folder.</li>
+								<li>Give it up to a minute to arrive.</li>
+								<li>Make sure the email address was typed correctly.</li>
+								<li>Use the <strong>Resend code</strong> button (available again every 30 seconds).</li>
+							</ul>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">The code says it's incorrect or expired.</button>
+						<div class="faq-a"><div>
+							<p>Codes expire after 10 minutes and allow a few tries before they're locked. Just tap <strong>Resend code</strong> to get a fresh one and enter the newest code.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">I forgot my password.</button>
+						<div class="faq-a"><div>
+							<p class="faq-note">Self-service password reset isn't available yet. In the meantime, please reach out through the Community/contact link below and we'll help you regain access.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">Why was I signed out, or asked for a code when logging in?</button>
+						<div class="faq-a"><div>
+							<p>If an account was created but never verified, logging in sends a fresh code and takes you to the verify screen to finish. Sessions also expire after about 30 days, after which you'll sign in again.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">Can I use my account on more than one device?</button>
+						<div class="faq-a"><div>
+							<p>Yes. Accounts are kept on our server, so you can sign in on your phone, tablet, and computer with the same email and password.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">How do I log out?</button>
+						<div class="faq-a"><div>
+							<p>On the marketing pages, open the profile menu in the top-right and choose <strong>Log out</strong>. Inside the player, open the account chip in the top-right and select <strong>Log out</strong>.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">How do I change my display name, colour, or bio?</button>
+						<div class="faq-a"><div>
+							<p>These are set on the profile-setup screen right after your first verification. You can revisit it any time you're signed in to update your display name, avatar colour, and short bio.</p>
+						</div></div>
+					</div>
+				</div>
+
+				<div class="faq-section" id="playing">
+					<h2>Playing music</h2>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">How do I play a song?</button>
+						<div class="faq-a"><div>
+							<p>Search for a song in the top search box, or open a language and tap any track in the list. It starts playing in the bottom mini-player. Tap the mini-player to open the full-screen now-playing view.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">How do I search for songs?</button>
+						<div class="faq-a"><div>
+							<p>Type a song or artist name in the search box at the top. You can also paste a JioSaavn song or playlist link and Cloud Songs will resolve it for you.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">What do the player controls do?</button>
+						<div class="faq-a"><div>
+							<ul>
+								<li><strong>Play / Pause</strong> and <strong>Next / Previous</strong> to move through the queue.</li>
+								<li><strong>Shuffle</strong> plays the list in a random order.</li>
+								<li><strong>Repeat</strong> cycles through off &rarr; repeat all &rarr; repeat one.</li>
+								<li><strong>Volume</strong> and the <strong>seek bar</strong> to jump within a track.</li>
+							</ul>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">How does the full-screen player work?</button>
+						<div class="faq-a"><div>
+							<p>Tap the mini-player at the bottom to open the full-screen view with large artwork and controls. It only closes when you press the <strong>&times;</strong> (or use Back), so it won't disappear from a stray tap while music is playing.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">What does "Show More" do?</button>
+						<div class="faq-a"><div>
+							<p>Song lists load a few tracks at first. <strong>Show More</strong> reveals additional tracks, and once the current list runs out it automatically pulls in more songs from related playlists so you can keep listening.</p>
+						</div></div>
+					</div>
+				</div>
+
+				<div class="faq-section" id="playlists">
+					<h2>Playlists and languages</h2>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">How do I browse playlists?</button>
+						<div class="faq-a"><div>
+							<p>Open <strong>Playlists</strong> (the bottom tab on phones, or the nav on laptops) and pick a language to see its latest chart and editorial playlists. Tap any playlist to open its songs.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">Which languages are available?</button>
+						<div class="faq-a"><div>
+							<p>The catalogue includes Hindi, English, Punjabi, Tamil, Telugu, Marathi, Gujarati, Bengali, Kannada, and Malayalam. Choose a language from the home screen to load its playlists.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">Where can I find songs I played before?</button>
+						<div class="faq-a"><div>
+							<p>Open the <strong>Recently played</strong> tab. It lists the songs you've played on this device, most recent first.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">How does the Back button behave?</button>
+						<div class="faq-a"><div>
+							<p>Back steps through the app one layer at a time &mdash; from the now-playing view to the playlists, to a language's songs, and back to the language list &mdash; before it leaves the page. The logo/Home returns you to the language picker without stopping playback.</p>
+						</div></div>
+					</div>
+				</div>
+
+				<div class="faq-section" id="privacy">
+					<h2>Privacy and security</h2>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">What information do you store about me?</button>
+						<div class="faq-a"><div>
+							<p>Your account details (name, email, and a securely hashed password), your profile (display name, avatar colour, bio), and your recently-played list, which is kept in your own browser.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">How is my password protected?</button>
+						<div class="faq-a"><div>
+							<p>Passwords are <strong>hashed on the server</strong> and never stored in plain text. Your browser only holds a secure, signed session cookie &mdash; not your password.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">Is the "Cloud Songs" verification email real?</button>
+						<div class="faq-a"><div>
+							<p>Yes &mdash; the only email we send is your 6-digit verification code. We will <strong>never</strong> ask for your password by email. If a message asks for your password or payment details, it isn't from us.</p>
+						</div></div>
+					</div>
+				</div>
+
+				<div class="faq-section" id="trouble">
+					<h2>Troubleshooting</h2>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">A song won't play or keeps skipping.</button>
+						<div class="faq-a"><div>
+							<p>Streaming links can expire; when that happens the player automatically fetches a fresh one and retries. If a track still won't play, try another song or refresh the page.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">I'm seeing an old version, or login seems stuck.</button>
+						<div class="faq-a"><div>
+							<p>Your browser may be showing a cached copy. Do a hard refresh: <strong>Ctrl+Shift+R</strong> (Windows) or <strong>Cmd+Shift+R</strong> (Mac). On mobile, pull down to refresh or clear the site data.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">Nothing loads or search returns nothing.</button>
+						<div class="faq-a"><div>
+							<p>Cloud Songs needs an internet connection to fetch the catalogue. Check your connection and try again. If search is empty, try a different spelling or a shorter query.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">The page looks zoomed in or out.</button>
+						<div class="faq-a"><div>
+							<p>Reset your browser zoom to 100% with <strong>Ctrl+0</strong> (Windows) or <strong>Cmd+0</strong> (Mac). The layout is designed to fit the screen at normal zoom.</p>
+						</div></div>
+					</div>
+
+					<div class="faq-item">
+						<button class="faq-q collapsible" type="button">A long song title looks cut off on my phone.</button>
+						<div class="faq-a"><div>
+							<p>Long titles wrap onto multiple lines so the full name is visible. If it still looks off, a hard refresh will load the latest layout.</p>
+						</div></div>
+					</div>
+				</div>
+
+				<p class="faq-empty" id="faqEmpty">No help articles match your search. Try different keywords.</p>
+			</div>
+		</div>
+		<!--FAQ-->
+
+		<!--Visit Community-->
+		<div class="visitCommunity">
+			<div class="container">
+				<h1 class="title-1">Still need help?</h1>
+				<p>Can't find the answer here? Reach our Community and support to get help from the Cloud Songs team and other listeners.</p>
+				<a class="black_btn" href="#">Find Answers</a>
+			</div>
+		</div>
 		<!--Visit Community-->
 
 		<!--Footer-->
@@ -126,20 +369,42 @@
 		<script src="./component/footer.js?v=20260904c"></script>
 		<script src="./js/main.js?v=20260904c"></script>
 		<script>
+			// Expand / collapse each FAQ answer.
 			var coll = document.getElementsByClassName("collapsible");
-			var i;
-			
-			for (i = 0; i < coll.length; i++) {
-			  coll[i].addEventListener("click", function() {
-				this.classList.toggle("active");
-				var content = this.nextElementSibling;
-				if (content.style.maxHeight){
-				  content.style.maxHeight = null;
-				} else {
-				  content.style.maxHeight = content.scrollHeight + "px";
-				} 
-			  });
+			for (var i = 0; i < coll.length; i++) {
+				coll[i].addEventListener("click", function () {
+					this.classList.toggle("active");
+					var content = this.nextElementSibling;
+					if (content.style.maxHeight) {
+						content.style.maxHeight = null;
+					} else {
+						content.style.maxHeight = content.scrollHeight + "px";
+					}
+				});
 			}
+
+			// Live search: filter questions (and answers) as the user types.
+			var searchInput = document.getElementById("helpSearch");
+			var items = Array.prototype.slice.call(document.querySelectorAll(".faq-item"));
+			var sections = Array.prototype.slice.call(document.querySelectorAll(".faq-section"));
+			var emptyMsg = document.getElementById("faqEmpty");
+
+			function filterFaq() {
+				var q = searchInput.value.trim().toLowerCase();
+				var anyVisible = 0;
+				items.forEach(function (item) {
+					var match = !q || item.textContent.toLowerCase().indexOf(q) !== -1;
+					item.style.display = match ? "" : "none";
+					if (match) anyVisible++;
+				});
+				// Hide a section heading when all its items are filtered out.
+				sections.forEach(function (sec) {
+					var visible = sec.querySelectorAll('.faq-item:not([style*="display: none"])').length;
+					sec.style.display = visible ? "" : "none";
+				});
+				if (emptyMsg) emptyMsg.style.display = anyVisible ? "none" : "block";
+			}
+			if (searchInput) searchInput.addEventListener("input", filterFaq);
 		</script>
 	</body>
 </html>
