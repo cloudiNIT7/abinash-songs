@@ -1038,30 +1038,8 @@
 		.mood-chip:hover { transform:translateY(-3px); box-shadow:0 12px 26px rgba(0,0,0,.5); }
 		.mood-chip__emoji { font-size:26px; display:block; margin-bottom:8px; filter:drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
 		.mood-chip__label { font-size:16px; font-weight:800; letter-spacing:.2px; text-shadow:0 1px 4px rgba(0,0,0,.4); }
-		/* Popular artists row */
-		.artist-chips {
-			display:grid; gap:14px; padding:2px 26px 30px;
-			grid-template-columns:repeat(auto-fill, minmax(110px, 1fr));
-		}
-		.artist-chip {
-			background:none; border:0; cursor:pointer; text-align:center; padding:0;
-			display:flex; flex-direction:column; align-items:center; gap:8px;
-		}
-		.artist-chip__ava {
-			width:96px; height:96px; border-radius:50%; overflow:hidden;
-			display:flex; align-items:center; justify-content:center;
-			color:#fff; font-size:34px; font-weight:800;
-			box-shadow:0 8px 20px rgba(0,0,0,.5); transition:transform .15s ease, box-shadow .15s ease;
-		}
-		.artist-chip:hover .artist-chip__ava { transform:scale(1.05); box-shadow:0 12px 26px rgba(0,0,0,.6); }
-		.artist-chip__name {
-			color:#eaeaea; font-size:13px; font-weight:600; max-width:100%;
-			overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-		}
 		@media (max-width:768px){
 			.mood-chips { padding:2px 12px 20px; gap:10px; grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); }
-			.artist-chips { padding:2px 12px 24px; gap:12px; grid-template-columns:repeat(auto-fill, minmax(84px,1fr)); }
-			.artist-chip__ava { width:76px; height:76px; font-size:28px; }
 		}
 		.lang-card {
 			position:relative; display:flex; flex-direction:column;
@@ -1675,8 +1653,6 @@
                   <div class="lang-chips" id="langChips" role="tablist" aria-label="Languages"></div>
                   <div class="section-title">Moods &amp; genres</div>
                   <div class="mood-chips" id="moodChips"></div>
-                  <div class="section-title">Popular artists</div>
-                  <div class="artist-chips" id="artistChips"></div>
                 </div>
 
                 <!-- ---- View 2: one language's songs (or search results) ----
@@ -3201,11 +3177,7 @@
 			{ label: "Retro 90s",  q: "90s",         emoji: "\uD83D\uDCFC", g: "linear-gradient(135deg,#c94b4b,#4b134f)" },
 		];
 
-		var ARTISTS = [
-			"Arijit Singh", "Sid Sriram", "Anirudh Ravichander", "A.R. Rahman",
-			"Shreya Ghoshal", "Diljit Dosanjh", "Pritam", "Yuvan Shankar Raja",
-			"Devi Sri Prasad", "Neha Kakkar", "Atif Aslam", "Badshah",
-		];
+		var ARTISTS = [];
 
 		// Open a browse result (mood or artist) as a fresh, daily-shuffled list.
 		function openBrowse(query, label) {
@@ -3235,23 +3207,7 @@
 			});
 		}
 
-		function renderArtists() {
-			var host = document.getElementById("artistChips");
-			if (!host) return;
-			host.innerHTML = "";
-			ARTISTS.forEach(function (name) {
-				var b = document.createElement("button");
-				b.type = "button";
-				b.className = "artist-chip";
-				b.innerHTML = '<span class="artist-chip__ava"></span><span class="artist-chip__name"></span>';
-				var ava = b.querySelector(".artist-chip__ava");
-				ava.textContent = name.charAt(0).toUpperCase();
-				ava.style.background = gradientFor(name);
-				b.querySelector(".artist-chip__name").textContent = name;
-				b.addEventListener("click", function () { openBrowse(name, name); });
-				host.appendChild(b);
-			});
-		}
+		function renderArtists() { /* removed: Popular artists section */ }
 
 		function renderLangChips() {
 			if (!langChipsEl) return;
@@ -3957,9 +3913,8 @@
 			showSongsView();
 			placeholder("Language catalogue failed to load. Search for a song instead.");
 		}
-		// Moods and artists are static browse shortcuts, rendered once.
+		// Moods are static browse shortcuts, rendered once.
 		renderMoods();
-		renderArtists();
 	})();
 </script>
 
