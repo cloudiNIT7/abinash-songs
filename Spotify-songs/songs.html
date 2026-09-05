@@ -3360,10 +3360,12 @@
 					});
 			});
 		}
-		/* ---------- Profile / Your Library + playlists ---------- */
+		/* ---------- Profile / Your Library + playlists ----------
+		 * The overlay markup lives later in the document than this script, so
+		 * elements are looked up at call time and the DOM wiring is deferred
+		 * until the page has finished parsing. */
 
-		var profileOverlay = document.getElementById("profileOverlay");
-		var addSheet = document.getElementById("addSheet");
+		function $id(x) { return document.getElementById(x); }
 		var PL_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2zm14 0v-6l5 3-5 3z"/></svg>';
 
 		function playlistsApi() { return apiGet("/api/me/playlists").then(function (d) { return (d && d.ok) ? d.playlists : []; }); }
@@ -3434,13 +3436,14 @@
 		}
 
 		function openProfile() {
+			var profileOverlay = $id("profileOverlay");
 			if (!profileOverlay) return;
 			var u = (typeof getCurrentUserObj === "function" && getCurrentUserObj()) || {};
 			var name = u.display_name || u.username || "You";
-			document.getElementById("profileName").textContent = name;
-			document.getElementById("profileEmail").textContent = u.email || "";
-			var av = document.getElementById("profileAvatar");
-			var initial = document.getElementById("profileAvatarInitial");
+			$id("profileName").textContent = name;
+			$id("profileEmail").textContent = u.email || "";
+			var av = $id("profileAvatar");
+			var initial = $id("profileAvatarInitial");
 			if (u.avatar_url) {
 				av.style.backgroundImage = "url('" + u.avatar_url + "')";
 				initial.style.display = "none";
@@ -3450,7 +3453,7 @@
 				initial.style.display = "";
 				initial.textContent = (name.charAt(0) || "?").toUpperCase();
 			}
-			document.getElementById("likedCount").textContent =
+			$id("likedCount").textContent =
 				(library.likes ? library.likes.length : 0) + " songs";
 			renderProfilePlaylists();
 			profileOverlay.classList.add("is-open");
@@ -3458,79 +3461,57 @@
 			if (window.CSNav && !window.CSNav.has("profile")) window.CSNav.push("profile", hideProfile);
 		}
 		function hideProfile() {
-			if (profileOverlay) { profileOverlay.classList.remove("is-open"); profileOverlay.setAttribute("aria-hidden", "true"); }
+			var o = $id("profileOverlay");
+			if (o) { o.classList.remove("is-open"); o.setAttribute("aria-hidden", "true"); }
 		}
 		function closeProfile() {
-			if (!profileOverlay || !profileOverlay.classList.contains("is-open")) return;
+			var o = $id("profileOverlay");
+			if (!o || !o.classList.contains("is-open")) return;
 			if (window.CSNav && window.CSNav.has("profile")) window.CSNav.back("profile");
 			else hideProfile();
 		}
 
-		var openProfileLink = document.getElementById("openProfileLink");
-		if (openProfileLink) openProfileLink.addEventListener("click", function (e) { e.preventDefault(); openProfile(); });
-		var profileClose = document.getElementById("profileClose");
-		if (profileClose) profileClose.addEventListener("click", closeProfile);
-		var openLikedBtn = document.getElementById("openLikedBtn");
-		if (openLikedBtn) openLikedBtn.addEventListener("click", openLiked);
-		var newPlaylistBtn = document.getElementById("newPlaylistBtn");
-		if (newPlaylistBtn) newPlaylistBtn.addEventListener("click", function () {
-			var name = window.prompt("Name your playlist");
-			if (!name || !name.trim()) return;
-			apiPost("/api/me/playlists", { name: name.trim() }).then(function (d) {
-				if (d && d.ok) renderProfilePlaylists();
-				else if (window.notify) window.notify((d && d.error) || "Couldn't create playlist", "error");
-			});
-		});
-
 		/* ---- Avatar upload: resize client-side to a small square, then save ---- */
-		var avatarInput = document.getElementById("avatarInput");
-		var profileAvatarEl = document.getElementById("profileAvatar");
-		if (profileAvatarEl && avatarInput) {
-			profileAvatarEl.addEventListener("click", function () { avatarInput.click(); });
-			avatarInput.addEventListener("change", function () {
-				var file = avatarInput.files && avatarInput.files[0];
-				if (!file) return;
-				var reader = new FileReader();
-				reader.onload = function () {
-					var img = new Image();
-					img.onload = function () {
-						var size = 256;
-						var canvas = document.createElement("canvas");
-						canvas.width = canvas.height = size;
-						var ctx = canvas.getContext("2d");
-						// center-crop to a square
-						var side = Math.min(img.width, img.height);
-						var sx = (img.width - side) / 2, sy = (img.height - side) / 2;
-						ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
-						var dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-						apiPost("/api/me/avatar", { dataUrl: dataUrl }).then(function (d) {
-							if (d && d.ok) {
-								// Update the cached user + all avatars on screen.
-								var u = (typeof getCurrentUserObj === "function" && getCurrentUserObj()) || {};
-								u.avatar_url = dataUrl;
-								var pa = document.getElementById("profileAvatar");
-								if (pa) { pa.style.backgroundImage = "url('" + dataUrl + "')"; }
-								document.getElementById("profileAvatarInitial").style.display = "none";
-								var chip = document.getElementById("userAvatar");
-								if (chip) { chip.style.backgroundImage = "url('" + dataUrl + "')"; chip.style.backgroundSize = "cover"; chip.textContent = ""; }
-							} else if (window.notify) {
-								window.notify((d && d.error) || "Couldn't save picture", "error");
-							}
-						});
-					};
-					img.src = reader.result;
+		function handleAvatarFile(file) {
+			if (!file) return;
+			var reader = new FileReader();
+			reader.onload = function () {
+				var img = new Image();
+				img.onload = function () {
+					var size = 256;
+					var canvas = document.createElement("canvas");
+					canvas.width = canvas.height = size;
+					var ctx = canvas.getContext("2d");
+					var side = Math.min(img.width, img.height);   // center-crop to a square
+					var sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+					ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+					var dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+					apiPost("/api/me/avatar", { dataUrl: dataUrl }).then(function (d) {
+						if (d && d.ok) {
+							var u = (typeof getCurrentUserObj === "function" && getCurrentUserObj()) || {};
+							u.avatar_url = dataUrl;
+							var pa = $id("profileAvatar");
+							if (pa) pa.style.backgroundImage = "url('" + dataUrl + "')";
+							if ($id("profileAvatarInitial")) $id("profileAvatarInitial").style.display = "none";
+							var chip = $id("userAvatar");
+							if (chip) { chip.style.backgroundImage = "url('" + dataUrl + "')"; chip.style.backgroundSize = "cover"; chip.textContent = ""; }
+						} else if (window.notify) {
+							window.notify((d && d.error) || "Couldn't save picture", "error");
+						}
+					});
 				};
-				reader.readAsDataURL(file);
-				avatarInput.value = "";
-			});
+				img.src = reader.result;
+			};
+			reader.readAsDataURL(file);
 		}
 
 		/* ---- Add-to-playlist sheet ---- */
 		var addSheetTrack = null;
 		function addToPlaylistFlow(track) {
+			var addSheet = $id("addSheet");
 			if (!addSheet || !track) return;
 			addSheetTrack = slim(track);
-			var listEl = document.getElementById("addSheetList");
+			var listEl = $id("addSheetList");
 			listEl.innerHTML = "<div class='profile-empty'>Loading\u2026</div>";
 			addSheet.classList.add("is-open");
 			addSheet.setAttribute("aria-hidden", "false");
@@ -3561,29 +3542,69 @@
 			});
 		}
 		function hideAddSheet() {
-			if (addSheet) { addSheet.classList.remove("is-open"); addSheet.setAttribute("aria-hidden", "true"); }
+			var s = $id("addSheet");
+			if (s) { s.classList.remove("is-open"); s.setAttribute("aria-hidden", "true"); }
 		}
 		function closeAddSheet() {
-			if (!addSheet || !addSheet.classList.contains("is-open")) return;
+			var s = $id("addSheet");
+			if (!s || !s.classList.contains("is-open")) return;
 			if (window.CSNav && window.CSNav.has("addsheet")) window.CSNav.back("addsheet");
 			else hideAddSheet();
 		}
-		var addSheetClose = document.getElementById("addSheetClose");
-		if (addSheetClose) addSheetClose.addEventListener("click", closeAddSheet);
-		if (addSheet) addSheet.addEventListener("click", function (e) { if (e.target === addSheet) closeAddSheet(); });
-		var addSheetNew = document.getElementById("addSheetNew");
-		if (addSheetNew) addSheetNew.addEventListener("click", function () {
-			var name = window.prompt("Name your playlist");
-			if (!name || !name.trim() || !addSheetTrack) return;
-			apiPost("/api/me/playlists", { name: name.trim() }).then(function (d) {
-				if (d && d.ok && d.playlist) {
-					apiPost("/api/me/playlist/add", { playlistId: d.playlist.id, track: addSheetTrack }).then(function () {
-						if (window.notify) window.notify("Added to " + d.playlist.name, "info");
-						closeAddSheet();
-					});
-				}
+
+		// Wire the profile/add-sheet DOM once the markup (which appears later in
+		// the document than this script) has been parsed.
+		function initProfileUI() {
+			var openProfileLink = $id("openProfileLink");
+			if (openProfileLink) openProfileLink.addEventListener("click", function (e) { e.preventDefault(); openProfile(); });
+			var profileClose = $id("profileClose");
+			if (profileClose) profileClose.addEventListener("click", closeProfile);
+			var openLikedBtn = $id("openLikedBtn");
+			if (openLikedBtn) openLikedBtn.addEventListener("click", openLiked);
+			var newPlaylistBtn = $id("newPlaylistBtn");
+			if (newPlaylistBtn) newPlaylistBtn.addEventListener("click", function () {
+				var name = window.prompt("Name your playlist");
+				if (!name || !name.trim()) return;
+				apiPost("/api/me/playlists", { name: name.trim() }).then(function (d) {
+					if (d && d.ok) renderProfilePlaylists();
+					else if (window.notify) window.notify((d && d.error) || "Couldn't create playlist", "error");
+				});
 			});
-		});
+
+			var avatarInput = $id("avatarInput");
+			var profileAvatarEl = $id("profileAvatar");
+			if (profileAvatarEl && avatarInput) {
+				profileAvatarEl.addEventListener("click", function () { avatarInput.click(); });
+				avatarInput.addEventListener("change", function () {
+					handleAvatarFile(avatarInput.files && avatarInput.files[0]);
+					avatarInput.value = "";
+				});
+			}
+
+			var addSheetClose = $id("addSheetClose");
+			if (addSheetClose) addSheetClose.addEventListener("click", closeAddSheet);
+			var addSheetEl = $id("addSheet");
+			if (addSheetEl) addSheetEl.addEventListener("click", function (e) { if (e.target === addSheetEl) closeAddSheet(); });
+			var addSheetNew = $id("addSheetNew");
+			if (addSheetNew) addSheetNew.addEventListener("click", function () {
+				var name = window.prompt("Name your playlist");
+				if (!name || !name.trim() || !addSheetTrack) return;
+				apiPost("/api/me/playlists", { name: name.trim() }).then(function (d) {
+					if (d && d.ok && d.playlist) {
+						apiPost("/api/me/playlist/add", { playlistId: d.playlist.id, track: addSheetTrack }).then(function () {
+							if (window.notify) window.notify("Added to " + d.playlist.name, "info");
+							closeAddSheet();
+						});
+					}
+				});
+			});
+		}
+		if (document.readyState === "loading") {
+			document.addEventListener("DOMContentLoaded", initProfileUI);
+		} else {
+			initProfileUI();
+		}
+
 
 
 		window.SongsApp = {
