@@ -1943,6 +1943,7 @@
 					navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
 				}
 			} catch (e) {}
+			nativeMediaState(isPlaying);
 		}
 
 		/* ---- OS media session: lock-screen / notification controls ----
@@ -1964,6 +1965,7 @@
 					]
 				});
 			} catch (e) {}
+			nativeMediaMeta(track);
 		}
 
 		function setupMediaSession() {
@@ -1978,6 +1980,33 @@
 			set("seekforward", function (d) { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + ((d && d.seekOffset) || 10)); });
 			set("seekto", function (d) { if (d && d.seekTime != null) audio.currentTime = d.seekTime; });
 			set("stop", function () { try { audio.pause(); } catch (e) {} });
+
+			// Bridge for the Android app shell (native media notification).
+			// The APK injects window.AndroidMedia and calls these back.
+			window.CloudSongsControl = {
+				toggle: function () { togglePlay(); },
+				play: function () { if (activeMedia && activeMedia.paused) togglePlay(); },
+				pause: function () { if (activeMedia && !activeMedia.paused) togglePlay(); },
+				next: function () { nextTrack(); },
+				prev: function () { prevTrack(); },
+				seek: function (ms) { try { audio.currentTime = (ms || 0) / 1000; } catch (e) {} }
+			};
+		}
+
+		// Push metadata/state to the native Android media notification, if present.
+		function nativeMediaMeta(track) {
+			if (!window.AndroidMedia || !track) return;
+			try { window.AndroidMedia.updateMetadata(track.name || "", track.artist || "", track.art || ""); } catch (e) {}
+		}
+		function nativeMediaState(isPlaying) {
+			if (!window.AndroidMedia) return;
+			try {
+				window.AndroidMedia.updatePlayback(
+					!!isPlaying,
+					Math.floor((audio.currentTime || 0) * 1000),
+					Math.floor((audio.duration || 0) * 1000)
+				);
+			} catch (e) {}
 		}
 
 		// ---- Browser tab mirrors what's playing ----
