@@ -782,6 +782,36 @@
 		.add-sheet__item.is-in { border-color:rgba(29,185,84,.5); }
 		.add-sheet__item .tick { color:var(--sp-green); font-weight:700; }
 		@media (min-width:600px){ .add-sheet { align-items:center; } .add-sheet__panel { border-radius:16px; } }
+
+		/* Name-a-playlist modal (in-page, replaces window.prompt) */
+		.name-modal {
+			position:fixed; inset:0; z-index:2600; background:rgba(0,0,0,.65);
+			display:flex; align-items:center; justify-content:center; padding:20px;
+			opacity:0; visibility:hidden; transition:opacity .18s, visibility .18s;
+		}
+		.name-modal.is-open { opacity:1; visibility:visible; }
+		.name-modal__panel {
+			width:100%; max-width:380px; background:#1c1c1f; border-radius:14px;
+			padding:22px; box-shadow:0 24px 60px rgba(0,0,0,.6);
+			transform:translateY(12px) scale(.98); transition:transform .18s;
+		}
+		.name-modal.is-open .name-modal__panel { transform:none; }
+		.name-modal__title { color:#fff; font-size:19px; font-weight:800; margin-bottom:14px; }
+		.name-modal__input {
+			width:100%; box-sizing:border-box; padding:12px 14px; border-radius:8px;
+			border:1px solid #4a4a4a; background:#121212; color:#fff; font-size:15px; outline:none;
+			transition:border-color .15s, box-shadow .15s;
+		}
+		.name-modal__input:focus { border-color:var(--sp-green); box-shadow:0 0 0 2px rgba(29,185,84,.3); }
+		.name-modal__actions { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+		.name-modal__btn {
+			border:none; border-radius:22px; padding:10px 20px; font-weight:700; font-size:14px; cursor:pointer;
+			transition:transform .15s, background .15s, color .15s;
+		}
+		.name-modal__btn--ghost { background:transparent; color:#b3b3b3; }
+		.name-modal__btn--ghost:hover { color:#fff; }
+		.name-modal__btn--primary { background:var(--sp-green); color:#000; }
+		.name-modal__btn--primary:hover { background:var(--sp-green-h); transform:scale(1.04); }
 		.album-card { background:#181818; border-radius:12px; padding:12px; cursor:pointer; transition:background .2s ease, transform .2s ease; }
 		.album-card:hover { background:#242424; transform:translateY(-4px); }
 		.album-card__art { position:relative; aspect-ratio:1/1; border-radius:8px; overflow:hidden; background:#2a2a2a; box-shadow:0 8px 22px rgba(0,0,0,.5); margin-bottom:10px; }
@@ -3516,12 +3546,44 @@
 			});
 		}
 
+		// In-page name prompt (no window.prompt). Resolves to a trimmed name,
+		// or null if cancelled.
+		function askPlaylistName(title) {
+			return new Promise(function (resolve) {
+				var modal = $id("nameModal"), input = $id("nameModalInput"),
+					ok = $id("nameModalOk"), cancel = $id("nameModalCancel"), head = $id("nameModalTitle");
+				if (!modal || !input) { resolve(null); return; }
+				if (head) head.textContent = title || "New playlist";
+				input.value = "";
+				modal.classList.add("is-open");
+				modal.setAttribute("aria-hidden", "false");
+				if (window.CSNav && !window.CSNav.has("namemodal")) window.CSNav.push("namemodal", function () { finish(null); });
+				setTimeout(function () { input.focus(); }, 40);
+
+				function finish(val) {
+					modal.classList.remove("is-open");
+					modal.setAttribute("aria-hidden", "true");
+					ok.onclick = cancel.onclick = input.onkeydown = modal.onclick = null;
+					if (val !== null && window.CSNav && window.CSNav.has("namemodal")) window.CSNav.back("namemodal");
+					resolve(val);
+				}
+				ok.onclick = function () { var v = input.value.trim(); if (v) finish(v); else input.focus(); };
+				cancel.onclick = function () { finish(null); };
+				input.onkeydown = function (e) {
+					if (e.key === "Enter") { e.preventDefault(); ok.onclick(); }
+					else if (e.key === "Escape") { finish(null); }
+				};
+				modal.onclick = function (e) { if (e.target === modal) finish(null); };
+			});
+		}
+
 		function promptNewPlaylist() {
-			var name = window.prompt("Name your playlist");
-			if (!name || !name.trim()) return;
-			apiPost("/api/me/playlists", { name: name.trim() }).then(function (d) {
-				if (d && d.ok) renderProfilePlaylists();
-				else if (window.notify) window.notify((d && d.error) || "Couldn't create playlist", "error");
+			askPlaylistName("New playlist").then(function (name) {
+				if (!name) return;
+				apiPost("/api/me/playlists", { name: name }).then(function (d) {
+					if (d && d.ok) renderProfilePlaylists();
+					else if (window.notify) window.notify((d && d.error) || "Couldn't create playlist", "error");
+				});
 			});
 		}
 
@@ -3672,15 +3734,17 @@
 			if (addSheetEl) addSheetEl.addEventListener("click", function (e) { if (e.target === addSheetEl) closeAddSheet(); });
 			var addSheetNew = $id("addSheetNew");
 			if (addSheetNew) addSheetNew.addEventListener("click", function () {
-				var name = window.prompt("Name your playlist");
-				if (!name || !name.trim() || !addSheetTrack) return;
-				apiPost("/api/me/playlists", { name: name.trim() }).then(function (d) {
-					if (d && d.ok && d.playlist) {
-						apiPost("/api/me/playlist/add", { playlistId: d.playlist.id, track: addSheetTrack }).then(function () {
-							if (window.notify) window.notify("Added to " + d.playlist.name, "info");
-							closeAddSheet();
-						});
-					}
+				if (!addSheetTrack) return;
+				askPlaylistName("New playlist").then(function (name) {
+					if (!name) return;
+					apiPost("/api/me/playlists", { name: name }).then(function (d) {
+						if (d && d.ok && d.playlist) {
+							apiPost("/api/me/playlist/add", { playlistId: d.playlist.id, track: addSheetTrack }).then(function () {
+								if (window.notify) window.notify("Added to " + d.playlist.name, "info");
+								closeAddSheet();
+							});
+						}
+					});
 				});
 			});
 		}
@@ -4023,6 +4087,18 @@
     </div>
     <button class="add-sheet__new" id="addSheetNew">+ New playlist</button>
     <div class="add-sheet__list" id="addSheetList"></div>
+  </div>
+</div>
+
+<!-- Name-a-playlist modal (replaces window.prompt) -->
+<div id="nameModal" class="name-modal" aria-hidden="true">
+  <div class="name-modal__panel">
+    <div class="name-modal__title" id="nameModalTitle">New playlist</div>
+    <input id="nameModalInput" class="name-modal__input" type="text" maxlength="60" placeholder="Playlist name" autocomplete="off" spellcheck="false" />
+    <div class="name-modal__actions">
+      <button id="nameModalCancel" type="button" class="name-modal__btn name-modal__btn--ghost">Cancel</button>
+      <button id="nameModalOk" type="button" class="name-modal__btn name-modal__btn--primary">Create</button>
+    </div>
   </div>
 </div>
 
