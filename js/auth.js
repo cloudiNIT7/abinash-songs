@@ -159,9 +159,24 @@ async function updateProfile(displayName, avatarColor, bio) {
 	return { ok: true, user: _user };
 }
 
-/* ---------- email verification ----------
- * getPendingOtp exists only so the old verify screen doesn't throw; the code
- * is emailed by the server and never exposed to the client. */
+// Save a profile picture (data URL). Endpoint is /api/me/avatar, not /api/auth.
+async function setAvatar(dataUrl) {
+	try {
+		const res = await fetch("/api/me/avatar", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ dataUrl: dataUrl }),
+			credentials: "same-origin",
+		});
+		let d = {};
+		try { d = await res.json(); } catch (e) {}
+		if (!res.ok) return { ok: false, message: d.error || "Couldn't save that picture." };
+		if (_user) _user.avatar_url = dataUrl;
+		return { ok: true };
+	} catch (e) {
+		return { ok: false, message: "Can't reach the server." };
+	}
+}
 
 function getPendingOtp() { return null; }
 

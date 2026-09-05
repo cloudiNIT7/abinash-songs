@@ -63,6 +63,7 @@
 				margin-bottom: 24px;
 			}
 			.setup_avatar_preview {
+				position: relative;
 				width: 72px;
 				height: 72px;
 				border-radius: 50%;
@@ -73,8 +74,26 @@
 				font-size: 28px;
 				font-weight: 700;
 				flex-shrink: 0;
+				cursor: pointer;
+				overflow: hidden;
+				background-size: cover;
+				background-position: center;
 				transition: background-color .2s;
 			}
+			.setup_avatar_edit {
+				position: absolute; inset: 0;
+				display: flex; align-items: center; justify-content: center;
+				background: rgba(0,0,0,.45); color: #fff; opacity: 0; transition: opacity .15s;
+			}
+			.setup_avatar_edit svg { width: 26px; height: 26px; }
+			.setup_avatar_preview:hover .setup_avatar_edit { opacity: 1; }
+			.setup_avatar_side { display: flex; flex-direction: column; gap: 10px; }
+			.setup_upload_btn {
+				align-self: flex-start; background: rgba(255,255,255,.12); color: #fff; border: 1px solid #4a4a4a;
+				border-radius: 20px; padding: 7px 16px; font-size: 13px; font-weight: 700; cursor: pointer;
+				transition: background .15s, border-color .15s;
+			}
+			.setup_upload_btn:hover { background: rgba(255,255,255,.2); border-color: var(--sp-green, #1DB954); }
 			.setup_swatches {
 				display: flex;
 				flex-wrap: wrap;
@@ -165,9 +184,17 @@
 
 				<form id="setupForm">
 					<div class="setup_avatar_row">
-						<div class="setup_avatar_preview" id="avatarPreview">A</div>
-						<div class="setup_swatches" id="swatches"></div>
+						<div class="setup_avatar_preview" id="avatarPreview" title="Upload a photo"><span id="avatarInitial">A</span>
+							<div class="setup_avatar_edit">
+								<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/></svg>
+							</div>
+						</div>
+						<div class="setup_avatar_side">
+							<button type="button" class="setup_upload_btn" id="uploadPhotoBtn">Upload photo</button>
+							<div class="setup_swatches" id="swatches"></div>
+						</div>
 					</div>
+					<input type="file" id="avatarFile" accept="image/*" hidden />
 
 					<div class="setup_field">
 						<label for="displayName">Display name</label>
@@ -203,12 +230,16 @@
 			const bioInput = document.getElementById("bio");
 			const bioCount = document.getElementById("bioCount");
 			const avatarPreview = document.getElementById("avatarPreview");
+			const avatarInitial = document.getElementById("avatarInitial");
+			const avatarFile = document.getElementById("avatarFile");
+			const uploadPhotoBtn = document.getElementById("uploadPhotoBtn");
 			const swatchesEl = document.getElementById("swatches");
 			const setupForm = document.getElementById("setupForm");
 			const setupError = document.getElementById("setupError");
 			const setupSubmit = document.getElementById("setupSubmit");
 
 			let selectedColor = (currentUser && currentUser.avatar_color) || AVATAR_COLORS[0];
+			let photoUrl = (currentUser && currentUser.avatar_url) || "";
 
 			// Pre-fill with whatever we already know about the account.
 			displayNameInput.value = (currentUser && currentUser.display_name) || (currentUser && currentUser.username) || "";
@@ -217,9 +248,45 @@
 
 			function renderAvatar() {
 				const initial = (displayNameInput.value.trim()[0] || (currentUser && currentUser.username[0]) || "?").toUpperCase();
-				avatarPreview.textContent = initial;
-				avatarPreview.style.backgroundColor = selectedColor;
+				avatarInitial.textContent = initial;
+				if (photoUrl) {
+					avatarPreview.style.backgroundImage = "url('" + photoUrl + "')";
+					avatarPreview.style.backgroundColor = "transparent";
+					avatarInitial.style.display = "none";
+				} else {
+					avatarPreview.style.backgroundImage = "none";
+					avatarPreview.style.backgroundColor = selectedColor;
+					avatarInitial.style.display = "";
+				}
 			}
+
+			// Upload + resize a personal photo, save it to the account.
+			function pickPhoto() { avatarFile.click(); }
+			if (avatarPreview) avatarPreview.addEventListener("click", pickPhoto);
+			if (uploadPhotoBtn) uploadPhotoBtn.addEventListener("click", pickPhoto);
+			if (avatarFile) avatarFile.addEventListener("change", function () {
+				const file = avatarFile.files && avatarFile.files[0];
+				avatarFile.value = "";
+				if (!file) return;
+				const reader = new FileReader();
+				reader.onload = function () {
+					const img = new Image();
+					img.onload = async function () {
+						const size = 256, canvas = document.createElement("canvas");
+						canvas.width = canvas.height = size;
+						const ctx = canvas.getContext("2d");
+						const side = Math.min(img.width, img.height);
+						ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+						const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+						setupError.textContent = "";
+						const res = (typeof setAvatar === "function") ? await setAvatar(dataUrl) : { ok: false, message: "Upload unavailable." };
+						if (res.ok) { photoUrl = dataUrl; renderAvatar(); }
+						else { setupError.textContent = res.message || "Couldn't save the photo."; }
+					};
+					img.src = reader.result;
+				};
+				reader.readAsDataURL(file);
+			});
 
 			function renderSwatches() {
 				swatchesEl.innerHTML = "";
@@ -231,6 +298,8 @@
 					btn.setAttribute("aria-label", "Choose avatar color " + color);
 					btn.addEventListener("click", () => {
 						selectedColor = color;
+						// Choosing a colour replaces any uploaded photo.
+						if (photoUrl) { photoUrl = ""; if (typeof setAvatar === "function") setAvatar(""); }
 						renderSwatches();
 						renderAvatar();
 					});
