@@ -218,20 +218,79 @@ public class PlaybackService extends Service {
 		if (url == null || url.length() == 0) { mArt = null; return; }
 		if (url.equals(mArtUrl) && mArt != null) return;
 		mArtUrl = url;
+		final String want = url;
 		new Thread(new Runnable() {
 			public void run() {
-				try {
-					java.io.InputStream in = new URL(url).openStream();
-					final Bitmap bmp = BitmapFactory.decodeStream(in);
-					in.close();
-					if (bmp != null) {
-						mArt = bmp;
-						refreshSession();
-						pushNotification();
-					}
-				} catch (Throwable ignored) {}
+				Bitmap bmp = fetchBitmap(want);
+				// A newer track may have been requested while we were loading;
+				// only apply if this URL is still the current one.
+				if (bmp != null && want.equals(mArtUrl)) {
+					mArt = bmp;
+					refreshSession();
+					pushNotification();
+				}
 			}
 		}).start();
+	}
+
+	/** Download + decode album art, following redirects and downsampling so the
+	 *  notification large-icon reliably appears without loading a huge bitmap. */
+	private Bitmap fetchBitmap(String url) {
+		try {
+			byte[] data = readBytes(url);
+			if (data == null) return null;
+
+			// First pass: read bounds only, then downsample toward ~512px.
+			BitmapFactory.Options bounds = new BitmapFactory.Options();
+			bounds.inJustDecodeBounds = true;
+			BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
+			int sample = 1;
+			int max = Math.max(bounds.outWidth, bounds.outHeight);
+			while (max / sample > 512) sample *= 2;
+
+			BitmapFactory.Options opts = new BitmapFactory.Options();
+			opts.inSampleSize = sample;
+			return BitmapFactory.decodeByteArray(data, 0, data.length, opts);
+		} catch (Throwable ignored) {
+			return null;
+		}
+	}
+
+	private byte[] readBytes(String url) {
+		java.net.HttpURLConnection c = null;
+		try {
+			// Follow up to a few redirects manually (http<->https redirects are
+			// not auto-followed by HttpURLConnection).
+			String current = url;
+			for (int hop = 0; hop < 4; hop++) {
+				c = (java.net.HttpURLConnection) new URL(current).openConnection();
+				c.setInstanceFollowRedirects(true);
+				c.setConnectTimeout(10000);
+				c.setReadTimeout(10000);
+				c.setRequestProperty("User-Agent", "CloudSongs/1.0 (Android)");
+				int code = c.getResponseCode();
+				if (code >= 300 && code < 400) {
+					String loc = c.getHeaderField("Location");
+					c.disconnect();
+					if (loc == null) return null;
+					current = new URL(new URL(current), loc).toString();
+					continue;
+				}
+				if (code != java.net.HttpURLConnection.HTTP_OK) return null;
+				java.io.InputStream in = c.getInputStream();
+				java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+				byte[] buf = new byte[8192];
+				int n;
+				while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+				in.close();
+				return out.toByteArray();
+			}
+			return null;
+		} catch (Throwable ignored) {
+			return null;
+		} finally {
+			try { if (c != null) c.disconnect(); } catch (Throwable ignored) {}
+		}
 	}
 
 	@Override
