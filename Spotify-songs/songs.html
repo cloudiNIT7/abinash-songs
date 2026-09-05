@@ -190,6 +190,104 @@
 			line-height: 1.4;
 		}
 
+		/* ---- Account dropdown panel (scoped to the header user chip) ----
+		 * Bootstrap's default menu is a white panel, which clashed with the
+		 * light-on-dark account text. This restyles just this one menu. */
+		.user-chip-wrap .dropdown-menu {
+			min-width: 268px;
+			margin: 10px 0 0;
+			padding: 6px;
+			border: 1px solid rgba(255,255,255,.10);
+			border-radius: 16px;
+			background: rgba(20,20,22,.92);
+			-webkit-backdrop-filter: blur(20px) saturate(140%);
+			backdrop-filter: blur(20px) saturate(140%);
+			box-shadow:
+				0 1px 0 rgba(255,255,255,.05) inset,
+				0 24px 54px -18px rgba(0,0,0,.9);
+			overflow: hidden;
+		}
+		.user-chip-wrap.open .dropdown-menu {
+			animation: cs-menu-in .16s cubic-bezier(.2,.7,.3,1) both;
+			transform-origin: top right;
+		}
+		@keyframes cs-menu-in {
+			from { opacity: 0; transform: translateY(-6px) scale(.98); }
+			to   { opacity: 1; transform: none; }
+		}
+		/* Caret pointing back at the chip. */
+		.user-chip-wrap .dropdown-menu::before {
+			content: "";
+			position: absolute;
+			top: -6px; right: 18px;
+			width: 11px; height: 11px;
+			background: rgba(20,20,22,.92);
+			border-left: 1px solid rgba(255,255,255,.10);
+			border-top: 1px solid rgba(255,255,255,.10);
+			transform: rotate(45deg);
+			border-radius: 2px 0 0 0;
+		}
+		.user-chip-wrap .dropdown-menu > li { padding: 0; margin: 0; }
+		.user-chip-wrap .dropdown-menu > li.divider {
+			height: 1px;
+			margin: 6px 8px;
+			background: rgba(255,255,255,.10);
+		}
+		/* Menu rows: icon + label, generous touch target. */
+		.user-chip-wrap .dropdown-menu > li > a {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			padding: 11px 12px;
+			border-radius: 11px;
+			color: #d6d6d6;
+			font-size: 14px;
+			font-weight: 600;
+			line-height: 1.2;
+			white-space: nowrap;
+			background: none;
+			transition: background .15s ease, color .15s ease, transform .15s ease;
+		}
+		.user-chip-wrap .dropdown-menu > li > a .cs-mi {
+			width: 18px; height: 18px; flex: none;
+			opacity: .82;
+			transition: opacity .15s ease, transform .15s ease;
+		}
+		.user-chip-wrap .dropdown-menu > li > a:hover,
+		.user-chip-wrap .dropdown-menu > li > a:focus {
+			background: rgba(255,255,255,.09);
+			color: #fff;
+			transform: translateX(2px);
+			outline: none;
+		}
+		.user-chip-wrap .dropdown-menu > li > a:hover .cs-mi { opacity: 1; transform: scale(1.06); }
+		.user-chip-wrap .dropdown-menu > li > a:focus-visible {
+			outline: 2px solid var(--sp-green-h);
+			outline-offset: -2px;
+		}
+		.user-chip-wrap .dropdown-menu > li > a:active { transform: none; }
+		/* Sign-out reads as the destructive action. */
+		.user-chip-wrap .dropdown-menu > li > a.cs-mi--danger:hover,
+		.user-chip-wrap .dropdown-menu > li > a.cs-mi--danger:focus {
+			background: rgba(241,94,108,.14);
+			color: #ff8b96;
+		}
+		.user-chip-wrap .dropdown-menu .dropdown-account-info {
+			padding: 12px 12px 12px;
+			margin-bottom: 2px;
+			border-radius: 12px;
+			background: rgba(255,255,255,.04);
+		}
+		@media (max-width: 480px) {
+			.user-chip-wrap .dropdown-menu { min-width: 240px; }
+		}
+		@media (prefers-reduced-motion: reduce) {
+			.user-chip-wrap.open .dropdown-menu { animation: none; }
+			.user-chip-wrap .dropdown-menu > li > a,
+			.user-chip-wrap .dropdown-menu > li > a .cs-mi { transition: none; }
+			.user-chip-wrap .dropdown-menu > li > a:hover { transform: none; }
+		}
+
 		/* Highlight the track that's currently playing in the list */
 		.tracks .track.is-playing {
 			background: rgba(29,185,84,0.14);
@@ -1676,9 +1774,9 @@
 						<div class="dropdown-account-bio" id="dropdownBio"></div>
 					</li>
 					<li role="separator" class="divider"></li>
-					<li><a href="#" id="openProfileLink">Your Library</a></li>
-					<li><a href="#" id="editProfileLink">Edit profile</a></li>
-					<li><a href="#" id="appLogoutLink">Log Out</a></li>
+					<li><a href="#" id="openProfileLink"><svg class="cs-mi" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 4h6v16H4V4zm8 0h3v16h-3V4zm5 0h3v16h-3V4z"/></svg><span>Your Library</span></a></li>
+					<li><a href="#" id="editProfileLink"><svg class="cs-mi" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg><span>Edit profile</span></a></li>
+					<li><a href="#" id="appLogoutLink" class="cs-mi--danger"><svg class="cs-mi" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 17l1.41-1.41L8.83 13H16v-2H8.83l2.58-2.59L10 7l-5 5 5 5zm9-14H5a2 2 0 0 0-2 2v4h2V5h14v14H5v-4H3v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg><span>Log Out</span></a></li>
 				</ul>
 			</div>
 
