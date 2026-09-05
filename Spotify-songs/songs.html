@@ -2440,7 +2440,31 @@
 			throw new Error("Unexpected response from the API.");
 		}
 
-		function load(path, loadingMsg, label) {
+		// Days since the Unix epoch: changes at local midnight, so anything
+		// seeded with it stays stable through the day and refreshes daily.
+		function daySeed() {
+			var now = new Date();
+			return Math.floor((now.getTime() - now.getTimezoneOffset() * 60000) / 86400000);
+		}
+		// Deterministic PRNG (mulberry32) so a given seed always shuffles the
+		// same way - the order is fixed for the day, then changes tomorrow.
+		function seededShuffle(list, seed) {
+			var a = list.slice();
+			var s = (seed >>> 0) || 1;
+			for (var i = a.length - 1; i > 0; i--) {
+				s = (s + 0x6D2B79F5) >>> 0;
+				var t = s;
+				t = Math.imul(t ^ (t >>> 15), t | 1);
+				t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+				var r = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+				var j = Math.floor(r * (i + 1));
+				var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+			}
+			return a;
+		}
+
+		function load(path, loadingMsg, label, opts) {
+			opts = opts || {};
 			placeholder(loadingMsg);
 			if (searchBtn) searchBtn.disabled = true;
 			return fetch(path, { headers: { Accept: "application/json" } })
@@ -2458,6 +2482,12 @@
 						.filter(function (s) { return s && s.media_url; })
 						.map(toTrack);
 					if (out.songs.length && !tracks.length) throw new Error("No streamable audio was returned.");
+					// Daily refresh: reorder with a per-day seed so the songs
+					// shown first (and the hero) differ each day instead of
+					// always leading with the same track.
+					if (opts.shuffleDaily && tracks.length > 1) {
+						tracks = seededShuffle(tracks, daySeed());
+					}
 					setTracks(tracks, (label || out.label), label || out.label);
 				})
 				.catch(function (err) {
@@ -2853,18 +2883,29 @@
 		// The newest / chart list for a language (see js/catalogue.js).
 		function openLatest(lang) {
 			lang = lang || langByCode(currentLang);
-			if (!lang || !lang.latest) {
+			if (!lang) { showLanguagesView(); return; }
+			// Daily rotation: cycle through this language's curated lists (its
+			// "latest" plus its playlists) by the day number, so a different
+			// set of songs leads the home view each day instead of the same one.
+			var pool = [];
+			if (lang.latest) pool.push(lang.latest);
+			pool = pool.concat(lang.playlists || []);
+			if (!pool.length) {
 				if (PLAYLISTS.length) openPlaylist(PLAYLISTS[0]);
+				else showLanguagesView();
 				return;
 			}
+			var pick = pool[daySeed() % pool.length];
+
 			if (window.setMobileTab) window.setMobileTab("songs");
-			currentPlaylistUrl = lang.latest.url;
+			currentPlaylistUrl = pick.url;
 			renderPlaylistGrid();
 			showSongsView();
-			setMoreSources(lang.latest.url);
-			return load("/playlist/?query=" + encodeURIComponent(lang.latest.url),
-				"Loading the latest in " + lang.label + "\u2026",
-				"Latest in " + lang.label);
+			setMoreSources(pick.url);
+			return load("/playlist/?query=" + encodeURIComponent(pick.url),
+				"Loading today's picks for " + lang.label + "\u2026",
+				"Today in " + lang.label,
+				{ shuffleDaily: true });
 		}
 
 		// "Home"/logo: back to the language picker without navigating, so
