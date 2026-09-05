@@ -114,9 +114,11 @@ public class PlaybackService extends Service {
 				String title = intent.getStringExtra(EX_TITLE);
 				String artist = intent.getStringExtra(EX_ARTIST);
 				String artUrl = intent.getStringExtra(EX_ART);
+				android.util.Log.d("CloudSongs", "META title=" + title + " artist=" + artist + " art=" + artUrl);
 				mTitle = title == null ? "" : title;
 				mArtist = artist == null ? "" : artist;
 				if (artUrl == null || !artUrl.equals(mArtUrl)) mArt = null;
+				session.setActive(true);
 				refreshSession();
 				pushNotification();
 				loadArt(artUrl);
@@ -124,6 +126,7 @@ public class PlaybackService extends Service {
 				mPlaying = intent.getBooleanExtra(EX_PLAYING, false);
 				mPos = intent.getLongExtra(EX_POS, 0);
 				mDur = intent.getLongExtra(EX_DUR, 0);
+				android.util.Log.d("CloudSongs", "STATE playing=" + mPlaying + " title=" + mTitle);
 				session.setActive(true);
 				refreshSession();
 				pushNotification();
@@ -153,8 +156,14 @@ public class PlaybackService extends Service {
 				.putString(MediaMetadata.METADATA_KEY_TITLE, mTitle)
 				.putString(MediaMetadata.METADATA_KEY_ARTIST, mArtist)
 				.putString(MediaMetadata.METADATA_KEY_ALBUM, "Cloud Songs")
+				.putString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE, mTitle)
+				.putString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE, mArtist)
 				.putLong(MediaMetadata.METADATA_KEY_DURATION, mDur);
-		if (mArt != null) mb.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, mArt);
+		if (mArt != null) {
+			mb.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, mArt);
+			mb.putBitmap(MediaMetadata.METADATA_KEY_ART, mArt);
+			mb.putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, mArt);
+		}
 		session.setMetadata(mb.build());
 
 		long actions = PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE
@@ -222,6 +231,7 @@ public class PlaybackService extends Service {
 		new Thread(new Runnable() {
 			public void run() {
 				Bitmap bmp = fetchBitmap(want);
+				android.util.Log.d("CloudSongs", "ART fetch " + (bmp != null ? (bmp.getWidth() + "x" + bmp.getHeight()) : "FAILED") + " url=" + want);
 				// A newer track may have been requested while we were loading;
 				// only apply if this URL is still the current one.
 				if (bmp != null && want.equals(mArtUrl)) {

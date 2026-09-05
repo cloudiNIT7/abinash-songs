@@ -133,6 +133,7 @@ public class MainActivity extends Activity {
 	private class MediaBridge {
 		@JavascriptInterface
 		public void updateMetadata(String title, String artist, String artUrl) {
+			android.util.Log.d("CloudSongs", "bridge.updateMetadata title=" + title + " art=" + artUrl);
 			Intent i = new Intent(MainActivity.this, PlaybackService.class);
 			i.putExtra(PlaybackService.CMD, PlaybackService.CMD_META);
 			i.putExtra(PlaybackService.EX_TITLE, title == null ? "" : title);
