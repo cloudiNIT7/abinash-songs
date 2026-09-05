@@ -2930,13 +2930,17 @@
 		function setMoreSources(skipUrl) {
 			var lang = langByCode(currentLang);
 			var OLD_RE = /(90s|80s|70s|2000s|retro|classic|golden|nostalg|old|let'?s play|best of (?:19|200|201))/i;
+			var label = (lang && lang.label || "").toLowerCase();
 			var pool = [];
 			if (lang && lang.latest) pool.push(lang.latest);
 			pool = pool.concat(PLAYLISTS || []);
 			var seen = {};
 			moreQueue = pool.filter(function (p) {
 				if (!p || !p.url || p.url === skipUrl || seen[p.url]) return false;
-				if (p.name && OLD_RE.test(p.name)) return false;   // keep "Show More" fresh too
+				if (p.name && OLD_RE.test(p.name)) return false;   // keep "Show More" fresh
+				// Stay in the selected language: the latest chart always qualifies;
+				// other lists must name this language.
+				if (p !== (lang && lang.latest) && label && p.name && p.name.toLowerCase().indexOf(label) === -1) return false;
 				seen[p.url] = true;
 				return true;
 			});
@@ -3636,14 +3640,19 @@
 		function openLatest(lang) {
 			lang = lang || langByCode(currentLang);
 			if (!lang) { showLanguagesView(); return; }
-			// Daily rotation, but only across FRESH lists so the home view
-			// always leads with current songs, never old/retro collections.
-			// Old-decade and artist-retrospective playlists are filtered out.
+			// Daily rotation across this language's FRESH, language-specific
+			// lists only, so a Tamil pick never plays Hindi/English etc.
 			var OLD_RE = /(90s|80s|70s|2000s|retro|classic|golden|nostalg|old|let'?s play|best of (?:19|200|201))/i;
+			var label = (lang.label || "").toLowerCase();
+			function isThisLanguage(p) {
+				// Keep playlists whose name names this language; drop cross-language
+				// / global lists (e.g. "Viral Nation", "ArtistOne Finds").
+				return p && p.name && p.name.toLowerCase().indexOf(label) !== -1;
+			}
 			var pool = [];
-			if (lang.latest) pool.push(lang.latest);
+			if (lang.latest) pool.push(lang.latest);   // the language's own chart
 			(lang.playlists || []).forEach(function (p) {
-				if (p && p.name && !OLD_RE.test(p.name)) pool.push(p);
+				if (p && p.name && !OLD_RE.test(p.name) && isThisLanguage(p)) pool.push(p);
 			});
 			if (!pool.length && lang.latest) pool.push(lang.latest);
 			if (!pool.length) {
@@ -3659,8 +3668,8 @@
 			showSongsView();
 			setMoreSources(pick.url);
 			return load("/playlist/?query=" + encodeURIComponent(pick.url),
-				"Loading today's picks for " + lang.label + "\u2026",
-				"Today in " + lang.label,
+				"Loading the latest in " + lang.label + "\u2026",
+				"Latest in " + lang.label,
 				{ shuffleDaily: true });
 		}
 
