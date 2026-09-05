@@ -34,7 +34,9 @@ import java.net.URL;
 public class PlaybackService extends Service {
 
 	static final int NOTIF_ID = 42;
+	static final int NOTIF_ID_POP = 43;
 	static final String CHANNEL = "cloudsongs_media";
+	static final String CHANNEL_POP = "cloudsongs_nowplaying";
 
 	static final String ACT_TOGGLE = "com.cloudsongs.app.TOGGLE";
 	static final String ACT_NEXT   = "com.cloudsongs.app.NEXT";
@@ -62,6 +64,7 @@ public class PlaybackService extends Service {
 	private long mPos = 0, mDur = 0;
 	private Bitmap mArt = null;
 	private boolean mStartedForeground = false;
+	private String mAnnounced = "";   // song already shown as a heads-up pop
 
 	@Override
 	public void onCreate() {
@@ -75,6 +78,16 @@ public class PlaybackService extends Service {
 			ch.setShowBadge(false);
 			ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
 			nm.createNotificationChannel(ch);
+
+			// Separate HIGH-importance channel so a "Now playing" banner pops
+			// down from the top of the screen when a new song starts.
+			NotificationChannel pop = new NotificationChannel(CHANNEL_POP, "Now playing",
+					NotificationManager.IMPORTANCE_HIGH);
+			pop.setShowBadge(false);
+			pop.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+			pop.enableVibration(false);
+			pop.setSound(null, null);
+			nm.createNotificationChannel(pop);
 		}
 
 		session = new MediaSession(this, "CloudSongs");
@@ -122,6 +135,12 @@ public class PlaybackService extends Service {
 				refreshSession();
 				pushNotification();
 				loadArt(artUrl);
+				// Heads-up "Now playing" banner, once per new song.
+				String key = mTitle + "\u0001" + mArtist;
+				if (mTitle.length() > 0 && !key.equals(mAnnounced)) {
+					mAnnounced = key;
+					popNowPlaying();
+				}
 			} else if (CMD_STATE.equals(cmd)) {
 				mPlaying = intent.getBooleanExtra(EX_PLAYING, false);
 				mPos = intent.getLongExtra(EX_POS, 0);
@@ -203,6 +222,28 @@ public class PlaybackService extends Service {
 			b.setStyle(style);
 		}
 		return b.build();
+	}
+
+	/** A short "Now playing" banner that pops down from the top of the screen
+	 *  on a HIGH-importance channel when a new song starts. This is separate
+	 *  from the ongoing media-control notification. */
+	private void popNowPlaying() {
+		Notification.Builder b = (Build.VERSION.SDK_INT >= 26)
+				? new Notification.Builder(this, CHANNEL_POP) : new Notification.Builder(this);
+		b.setSmallIcon(android.R.drawable.ic_media_play)
+				.setContentTitle("Now playing")
+				.setContentText(mArtist.length() > 0 ? (mTitle + " \u2022 " + mArtist) : mTitle)
+				.setVisibility(Notification.VISIBILITY_PUBLIC)
+				.setAutoCancel(true)
+				.setContentIntent(PendingIntent.getActivity(this, 0,
+						new Intent(this, MainActivity.class), pendingFlags()));
+		if (Build.VERSION.SDK_INT < 26) {
+			// Pre-Oreo: HIGH priority is what makes it a heads-up banner.
+			b.setPriority(Notification.PRIORITY_HIGH);
+			b.setDefaults(Notification.DEFAULT_LIGHTS);
+		}
+		if (mArt != null) b.setLargeIcon(mArt);
+		try { nm.notify(NOTIF_ID_POP, b.build()); } catch (Throwable ignored) {}
 	}
 
 	private void pushNotification() {
