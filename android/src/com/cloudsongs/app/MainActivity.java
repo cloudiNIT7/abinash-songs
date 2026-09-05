@@ -134,20 +134,32 @@ public class MainActivity extends Activity {
 	}
 
 	/**
-	 * Belt-and-suspenders: inject a watcher into every page that pushes the
-	 * currently-playing track to AndroidMedia, reading from the page's own
-	 * mediaSession metadata (title/artist/art) and the first <audio> element
-	 * (play state + position). This drives the native notification even if the
-	 * page's own bridge calls don't fire.
+	 * Inject a watcher into every page that reports the currently-playing track
+	 * to AndroidMedia. Title/artist/cover are read from the player's own DOM
+	 * (the bottom bar / now-playing banner) because Android WebView does not
+	 * reliably expose navigator.mediaSession.metadata back to script. Play
+	 * state and position come from the <audio> element.
 	 */
 	private void injectMediaWatcher() {
 		final String code =
 			"(function(){try{" +
 			"if(window.__csWatch)return;window.__csWatch=1;" +
 			"function A(){return document.querySelector('audio');}" +
-			"function meta(){try{var m=navigator.mediaSession&&navigator.mediaSession.metadata;" +
-			"if(m){var art='';try{art=(m.artwork&&m.artwork.length)?m.artwork[m.artwork.length-1].src:'';}catch(e){}" +
-			"if(window.AndroidMedia&&m.title){AndroidMedia.updateMetadata(m.title||'',m.artist||'',art||'');}}}catch(e){}}" +
+			"function tx(id,sel){var e=id?document.getElementById(id):null;" +
+			"if(!e&&sel)e=document.querySelector(sel);" +
+			"if(!e)return '';var t=(e.textContent||'').trim();" +
+			"if(!t||t==='Nothing playing'||t==='\\u2014')return '';return t;}" +
+			"function im(){var ids=['ctArt','npArt','playingArt','heroArt'];" +
+			"for(var i=0;i<ids.length;i++){var e=document.getElementById(ids[i]);" +
+			"if(e&&e.src&&e.src.indexOf('data:')!==0&&e.src.indexOf('icon.png')<0)return e.src;}return '';}" +
+			"var lastT='',lastA='',lastArt='';" +
+			"function meta(){try{" +
+			"var t=tx('ctTitle','.playing__song__name')||tx('npTitle',null);" +
+			"var ar=tx('ctArtist','.playing__song__artist')||tx('npArtist',null);" +
+			"var g=im();" +
+			"if(t&&window.AndroidMedia&&(t!==lastT||ar!==lastA||g!==lastArt)){" +
+			"lastT=t;lastA=ar;lastArt=g;AndroidMedia.updateMetadata(t,ar,g);}" +
+			"}catch(e){}}" +
 			"function state(){try{var a=A();if(a&&window.AndroidMedia){" +
 			"AndroidMedia.updatePlayback(!a.paused,Math.floor((a.currentTime||0)*1000),Math.floor((a.duration||0)*1000));}}catch(e){}}" +
 			"function both(){meta();state();}" +
@@ -155,7 +167,7 @@ public class MainActivity extends Activity {
 			"document.addEventListener('pause',both,true);" +
 			"document.addEventListener('loadedmetadata',both,true);" +
 			"document.addEventListener('durationchange',both,true);" +
-			"setInterval(function(){var a=A();if(a&&!a.paused){meta();state();}},1000);" +
+			"setInterval(function(){var a=A();if(a&&a.src){meta();if(!a.paused)state();}},1000);" +
 			"both();" +
 			"}catch(e){}})();";
 		js(code);
@@ -174,7 +186,6 @@ public class MainActivity extends Activity {
 	private class MediaBridge {
 		@JavascriptInterface
 		public void updateMetadata(String title, String artist, String artUrl) {
-			android.util.Log.d("CloudSongs", "bridge.updateMetadata title=" + title + " art=" + artUrl);
 			Intent i = new Intent(MainActivity.this, PlaybackService.class);
 			i.putExtra(PlaybackService.CMD, PlaybackService.CMD_META);
 			i.putExtra(PlaybackService.EX_TITLE, title == null ? "" : title);

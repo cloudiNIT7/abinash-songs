@@ -129,7 +129,6 @@ public class PlaybackService extends Service {
 				String title = intent.getStringExtra(EX_TITLE);
 				String artist = intent.getStringExtra(EX_ARTIST);
 				String artUrl = intent.getStringExtra(EX_ART);
-				android.util.Log.d("CloudSongs", "META title=" + title + " artist=" + artist + " art=" + artUrl);
 				mTitle = title == null ? "" : title;
 				mArtist = artist == null ? "" : artist;
 				if (artUrl == null || !artUrl.equals(mArtUrl)) mArt = null;
@@ -147,7 +146,6 @@ public class PlaybackService extends Service {
 				mPlaying = intent.getBooleanExtra(EX_PLAYING, false);
 				mPos = intent.getLongExtra(EX_POS, 0);
 				mDur = intent.getLongExtra(EX_DUR, 0);
-				android.util.Log.d("CloudSongs", "STATE playing=" + mPlaying + " title=" + mTitle);
 				session.setActive(true);
 				setWake(mPlaying);
 				refreshSession();
@@ -275,7 +273,6 @@ public class PlaybackService extends Service {
 		new Thread(new Runnable() {
 			public void run() {
 				Bitmap bmp = fetchBitmap(want);
-				android.util.Log.d("CloudSongs", "ART fetch " + (bmp != null ? (bmp.getWidth() + "x" + bmp.getHeight()) : "FAILED") + " url=" + want);
 				// A newer track may have been requested while we were loading;
 				// only apply if this URL is still the current one.
 				if (bmp != null && want.equals(mArtUrl)) {
