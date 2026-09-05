@@ -1937,6 +1937,47 @@
 		function setPlayingIcon(isPlaying) {
 			var svg = isPlaying ? PAUSE_SVG : PLAY_SVG;
 			[trackPlayBtn, npPlay].forEach(function (btn) { if (btn) btn.innerHTML = svg; });
+			// Reflect state in the OS media notification / lock screen.
+			try {
+				if ("mediaSession" in navigator) {
+					navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+				}
+			} catch (e) {}
+		}
+
+		/* ---- OS media session: lock-screen / notification controls ----
+		 * Populates the system media notification (cover, title, artist) and
+		 * wires its play/pause/next/previous/seek buttons to the player, so the
+		 * current song shows up in the phone's media controls. */
+		function updateMediaSession(track) {
+			if (!("mediaSession" in navigator) || !track) return;
+			try {
+				var art = track.art || "../Spotify-songs/icon.png";
+				navigator.mediaSession.metadata = new MediaMetadata({
+					title: track.name || "Unknown track",
+					artist: track.artist || "",
+					album: track.album || "Cloud Songs",
+					artwork: [
+						{ src: art, sizes: "96x96", type: "image/jpeg" },
+						{ src: art, sizes: "192x192", type: "image/jpeg" },
+						{ src: art, sizes: "512x512", type: "image/jpeg" }
+					]
+				});
+			} catch (e) {}
+		}
+
+		function setupMediaSession() {
+			if (!("mediaSession" in navigator)) return;
+			var ms = navigator.mediaSession;
+			function set(action, handler) { try { ms.setActionHandler(action, handler); } catch (e) {} }
+			set("play", function () { if (activeMedia && activeMedia.paused) togglePlay(); else if (audio.paused) togglePlay(); });
+			set("pause", function () { togglePlay(); });
+			set("previoustrack", function () { prevTrack(); });
+			set("nexttrack", function () { nextTrack(); });
+			set("seekbackward", function (d) { audio.currentTime = Math.max(0, audio.currentTime - ((d && d.seekOffset) || 10)); });
+			set("seekforward", function (d) { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + ((d && d.seekOffset) || 10)); });
+			set("seekto", function (d) { if (d && d.seekTime != null) audio.currentTime = d.seekTime; });
+			set("stop", function () { try { audio.pause(); } catch (e) {} });
 		}
 
 		// ---- Browser tab mirrors what's playing ----
@@ -2045,6 +2086,7 @@
 			if (npBg) npBg.style.backgroundImage = "url('" + artUrl + "')";
 			currentTrack = track;
 			updateLikeButton();
+			updateMediaSession(track);
 			setTabForTrack(track, !!autoplay);
 			// The bottom bar stays off-screen until there's actually something
 			// loaded, so an empty transport never occupies the viewport.
@@ -2325,6 +2367,17 @@
 			if (npProgressFill && dur) npProgressFill.style.width = ((m.currentTime / dur) * 100) + "%";
 			if (npCur) npCur.textContent = formatTime(m.currentTime);
 			if (npDur) npDur.textContent = formatTime(dur);
+			// Feed the OS media notification's scrubber.
+			try {
+				if ("mediaSession" in navigator && navigator.mediaSession.setPositionState &&
+					isFinite(dur) && dur > 0) {
+					navigator.mediaSession.setPositionState({
+						duration: dur,
+						position: Math.min(m.currentTime, dur),
+						playbackRate: m.playbackRate || 1
+					});
+				}
+			} catch (e) {}
 			// Keep the muted video aligned with the song if it drifts.
 			if (videoMode && npVideo && npVideo.readyState >= 2 && !npVideo.seeking &&
 				Math.abs((npVideo.currentTime || 0) - m.currentTime) > 0.4) {
@@ -2332,6 +2385,7 @@
 			}
 		}
 		audio.addEventListener("timeupdate", function () { onTimeUpdate(audio); });
+		setupMediaSession();
 
 		function updateVolumeIcon() {
 			if (!volumeIcon) return;
