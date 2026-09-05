@@ -93,6 +93,10 @@ public class MainActivity extends Activity {
 				public void onReceivedError(WebView view, android.webkit.WebResourceRequest request, android.webkit.WebResourceError error) {
 					if (Build.VERSION.SDK_INT >= 21 && request != null && request.isForMainFrame()) showError();
 				}
+				@Override
+				public void onPageFinished(WebView view, String url) {
+					injectMediaWatcher();
+				}
 			});
 			web.setWebChromeClient(new WebChromeClient() {
 				@Override
@@ -127,6 +131,34 @@ public class MainActivity extends Activity {
 		runOnUiThread(new Runnable() {
 			public void run() { if (web != null) web.evaluateJavascript(code, null); }
 		});
+	}
+
+	/**
+	 * Belt-and-suspenders: inject a watcher into every page that pushes the
+	 * currently-playing track to AndroidMedia, reading from the page's own
+	 * mediaSession metadata (title/artist/art) and the first <audio> element
+	 * (play state + position). This drives the native notification even if the
+	 * page's own bridge calls don't fire.
+	 */
+	private void injectMediaWatcher() {
+		final String code =
+			"(function(){try{" +
+			"if(window.__csWatch)return;window.__csWatch=1;" +
+			"function A(){return document.querySelector('audio');}" +
+			"function meta(){try{var m=navigator.mediaSession&&navigator.mediaSession.metadata;" +
+			"if(m){var art='';try{art=(m.artwork&&m.artwork.length)?m.artwork[m.artwork.length-1].src:'';}catch(e){}" +
+			"if(window.AndroidMedia&&m.title){AndroidMedia.updateMetadata(m.title||'',m.artist||'',art||'');}}}catch(e){}}" +
+			"function state(){try{var a=A();if(a&&window.AndroidMedia){" +
+			"AndroidMedia.updatePlayback(!a.paused,Math.floor((a.currentTime||0)*1000),Math.floor((a.duration||0)*1000));}}catch(e){}}" +
+			"function both(){meta();state();}" +
+			"document.addEventListener('play',both,true);" +
+			"document.addEventListener('pause',both,true);" +
+			"document.addEventListener('loadedmetadata',both,true);" +
+			"document.addEventListener('durationchange',both,true);" +
+			"setInterval(function(){var a=A();if(a&&!a.paused){meta();state();}},1000);" +
+			"both();" +
+			"}catch(e){}})();";
+		js(code);
 	}
 
 	/* ---------- forward metadata / state from the page to the service ---------- */
