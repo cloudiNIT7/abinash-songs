@@ -3179,15 +3179,31 @@
 
 		var ARTISTS = [];
 
-		// Open a browse result (mood or artist) as a fresh, daily-shuffled list.
+		// Moods pull fresh songs across the mainstream languages (English,
+		// Hindi, Telugu), merged and de-duplicated, then daily-shuffled.
+		var MOOD_LANGS = ["English", "Hindi", "Telugu"];
 		function openBrowse(query, label) {
 			if (window.setMobileTab) window.setMobileTab("songs");
 			moreQueue = []; fetchingMore = false;
 			showSongsView();
-			var lang = langByCode(currentLang);
-			var q = query + (lang ? " " + lang.label : "");
-			return load("/browse/?query=" + encodeURIComponent(q),
-				"Loading " + label + "\u2026", label, { shuffleDaily: true });
+			placeholder("Loading " + label + "\u2026");
+			Promise.all(MOOD_LANGS.map(function (l) {
+				return fetch("/browse/?query=" + encodeURIComponent(query + " " + l), { headers: { Accept: "application/json" } })
+					.then(function (r) { return r.ok ? r.json() : null; })
+					.catch(function () { return null; });
+			})).then(function (results) {
+				var seen = {}, tracks = [];
+				results.forEach(function (d) {
+					((d && d.songs) || []).forEach(function (s) {
+						if (!s || !s.media_url) return;
+						var t = toTrack(s);
+						if (t.id && !seen[t.id]) { seen[t.id] = 1; tracks.push(t); }
+					});
+				});
+				if (!tracks.length) { placeholder("No songs found for " + label + "."); return; }
+				tracks = seededShuffle(tracks, daySeed());
+				setTracks(tracks, label, label);
+			});
 		}
 
 		function renderMoods() {
