@@ -711,6 +711,79 @@
 		.profile-stats { display:flex; align-items:center; gap:10px; margin-top:10px; color:rgba(255,255,255,.85); font-size:13px; font-weight:600; }
 		.profile-stats i { width:4px; height:4px; border-radius:50%; background:rgba(255,255,255,.6); display:inline-block; }
 
+		/* ---- Inline profile editor (edit name / bio / colour without leaving the page) ---- */
+		.pf-edit-btn {
+			margin-top:14px; background:rgba(255,255,255,.12); color:#fff;
+			border:1px solid rgba(255,255,255,.28); border-radius:999px;
+			padding:8px 18px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer;
+			transition:background .16s, border-color .16s, transform .16s;
+		}
+		.pf-edit-btn:hover { background:rgba(255,255,255,.2); border-color:var(--sp-green); transform:translateY(-1px); }
+		.pf-edit-btn:focus-visible { outline:3px solid var(--sp-green-h); outline-offset:2px; }
+
+		.pf-edit {
+			margin:20px 28px 4px; padding:20px; border-radius:18px;
+			background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.10);
+			-webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+			box-shadow:0 20px 44px -24px rgba(0,0,0,.9);
+		}
+		.pf-edit[hidden] { display:none; }
+		.pf-edit__head { color:#fff; font-size:16px; font-weight:800; margin:0 0 14px; letter-spacing:-.2px; }
+		.pf-field { margin-bottom:14px; }
+		.pf-field label { display:block; color:#fff; font-size:12px; font-weight:700; letter-spacing:.3px; margin-bottom:7px; }
+		.pf-field input, .pf-field textarea {
+			width:100%; box-sizing:border-box; padding:12px 14px; border-radius:11px;
+			border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.05);
+			color:#fff; font-size:15px; font-family:inherit; line-height:1.45; resize:vertical;
+			transition:border-color .16s, box-shadow .16s, background .16s;
+		}
+		.pf-field input::placeholder, .pf-field textarea::placeholder { color:rgba(255,255,255,.36); }
+		.pf-field input:focus, .pf-field textarea:focus {
+			outline:none; border-color:var(--sp-green); background:rgba(255,255,255,.07);
+			box-shadow:0 0 0 4px rgba(29,185,84,.18);
+		}
+		.pf-count { color:#9b9b9b; font-size:12px; margin-top:6px; text-align:right; font-variant-numeric:tabular-nums; }
+		.pf-swatches { display:flex; flex-wrap:wrap; gap:9px; }
+		.pf-swatch {
+			position:relative; width:26px; height:26px; border-radius:50%; border:2px solid transparent;
+			cursor:pointer; padding:0; transition:transform .15s, box-shadow .15s;
+		}
+		.pf-swatch:hover { transform:scale(1.14); }
+		.pf-swatch:focus-visible { outline:3px solid #fff; outline-offset:2px; }
+		.pf-swatch.active { border-color:#fff; box-shadow:0 0 0 3px rgba(255,255,255,.18); }
+		.pf-swatch.active::after {
+			content:""; position:absolute; left:50%; top:46%; width:5px; height:9px;
+			border:2px solid #fff; border-top:0; border-left:0;
+			transform:translate(-50%,-50%) rotate(45deg);
+		}
+		.pf-actions { display:flex; align-items:center; gap:10px; margin-top:16px; flex-wrap:wrap; }
+		.pf-save {
+			background:linear-gradient(180deg, var(--sp-green-h), var(--sp-green)); color:#06240f;
+			border:none; border-radius:999px; padding:11px 24px; font-size:14px; font-weight:800;
+			font-family:inherit; cursor:pointer; letter-spacing:.4px;
+			box-shadow:0 12px 24px -14px rgba(29,185,84,.9);
+			transition:filter .16s, transform .16s;
+		}
+		.pf-save:hover { filter:brightness(1.06); transform:translateY(-1px); }
+		.pf-save:disabled { opacity:.55; cursor:default; filter:none; transform:none; box-shadow:none; }
+		.pf-cancel {
+			background:transparent; color:#b3b3b3; border:1px solid rgba(255,255,255,.22);
+			border-radius:999px; padding:10px 20px; font-size:13px; font-weight:700;
+			font-family:inherit; cursor:pointer; transition:color .16s, border-color .16s;
+		}
+		.pf-cancel:hover { color:#fff; border-color:rgba(255,255,255,.45); }
+		.pf-save:focus-visible, .pf-cancel:focus-visible { outline:3px solid #fff; outline-offset:2px; }
+		.pf-msg { font-size:13px; min-height:16px; margin-left:2px; }
+		.pf-msg.is-err { color:#f15e6c; }
+		.pf-msg.is-ok { color:var(--sp-green-h); }
+		@media (max-width:768px){
+			.pf-edit { margin:16px 16px 4px; padding:16px; }
+			.pf-actions { gap:8px; }
+		}
+		@media (prefers-reduced-motion: reduce){
+			.pf-edit-btn, .pf-swatch, .pf-save, .pf-cancel, .pf-field input, .pf-field textarea { transition:none; }
+		}
+
 		.lib-tile {
 			display:flex; align-items:center; gap:16px; width:calc(100% - 56px); margin:22px 28px 8px;
 			background:linear-gradient(135deg, #ff3b5c, #d92d7a); border:none; border-radius:14px;
@@ -1578,7 +1651,7 @@
 					</li>
 					<li role="separator" class="divider"></li>
 					<li><a href="#" id="openProfileLink">Your Library</a></li>
-					<li><a href="../profile.html?next=./Spotify-songs/songs.html">Edit profile</a></li>
+					<li><a href="#" id="editProfileLink">Edit profile</a></li>
 					<li><a href="#" id="appLogoutLink">Log Out</a></li>
 				</ul>
 			</div>
@@ -3943,6 +4016,7 @@
 			var statLikes = $id("statLikes");
 			if (statLikes) statLikes.textContent = (library.likes ? library.likes.length : 0) + " liked";
 			renderProfilePlaylists();
+			pfSetOpen(false);
 			profileOverlay.classList.add("is-open");
 			profileOverlay.setAttribute("aria-hidden", "false");
 			if (window.CSNav && !window.CSNav.has("profile")) window.CSNav.push("profile", hideProfile);
@@ -3956,6 +4030,112 @@
 			if (!o || !o.classList.contains("is-open")) return;
 			if (window.CSNav && window.CSNav.has("profile")) window.CSNav.back("profile");
 			else hideProfile();
+		}
+
+		/* ---- Inline profile editor -------------------------------------------
+		 * Lets the display name, bio and avatar colour be changed straight from
+		 * the songs page, so editing a profile no longer navigates away. Saves
+		 * through the same /api/auth/profile endpoint the standalone page uses. */
+		var PF_COLOURS = ["#1DB954", "#F15E6C", "#5B5FF3", "#F2C94C", "#9B51E0", "#2D9CDB", "#EB5757", "#27AE60"];
+		var pfColour = "#1DB954";
+
+		function pfMsg(text, kind) {
+			var m = $id("pfMsg");
+			if (!m) return;
+			m.textContent = text || "";
+			m.className = "pf-msg" + (kind ? " is-" + kind : "");
+		}
+		function pfBioCount() {
+			var b = $id("pfBio"), c = $id("pfBioCount");
+			if (b && c) c.textContent = b.value.length + " / 300";
+		}
+		function pfRenderSwatches() {
+			var wrap = $id("pfSwatches");
+			if (!wrap) return;
+			wrap.innerHTML = "";
+			PF_COLOURS.forEach(function (colour) {
+				var b = document.createElement("button");
+				b.type = "button";
+				b.className = "pf-swatch" + (colour === pfColour ? " active" : "");
+				b.style.backgroundColor = colour;
+				b.setAttribute("aria-label", "Avatar colour " + colour);
+				b.setAttribute("aria-pressed", colour === pfColour ? "true" : "false");
+				b.addEventListener("click", function () { pfColour = colour; pfRenderSwatches(); });
+				wrap.appendChild(b);
+			});
+		}
+		/** Load the signed-in account's values into the editor fields. */
+		function pfFill() {
+			var u = (typeof getCurrentUserObj === "function" && getCurrentUserObj()) || {};
+			var n = $id("pfName"), b = $id("pfBio");
+			if (n) n.value = u.display_name || u.username || "";
+			if (b) b.value = u.bio || "";
+			pfColour = u.avatar_color || "#1DB954";
+			pfBioCount();
+			pfRenderSwatches();
+			pfMsg("");
+		}
+		function pfSetOpen(open) {
+			var panel = $id("pfEdit"), btn = $id("pfEditToggle");
+			if (!panel) return;
+			panel.hidden = !open;
+			if (btn) {
+				btn.setAttribute("aria-expanded", open ? "true" : "false");
+				btn.textContent = open ? "Close editor" : "Edit profile";
+			}
+			if (open) {
+				pfFill();
+				var n = $id("pfName");
+				if (n) n.focus();
+			}
+		}
+		function pfSave() {
+			var nameEl = $id("pfName"), bioEl = $id("pfBio"), btn = $id("pfSave");
+			if (!nameEl) return;
+			var name = (nameEl.value || "").trim();
+			var bio = (bioEl && bioEl.value || "").trim();
+			if (name.length < 2 || name.length > 40) { pfMsg("Display name must be 2 to 40 characters.", "err"); nameEl.focus(); return; }
+			if (bio.length > 300) { pfMsg("Bio must be 300 characters or fewer.", "err"); return; }
+			if (typeof updateProfile !== "function") { pfMsg("Saving is unavailable right now.", "err"); return; }
+
+			if (btn) { btn.disabled = true; btn.textContent = "Saving\u2026"; }
+			pfMsg("");
+			Promise.resolve(updateProfile(name, pfColour, bio)).then(function (res) {
+				if (btn) { btn.disabled = false; btn.textContent = "Save changes"; }
+				if (res && res.ok) {
+					// Reflect the change in the hero without a page reload.
+					var nm = $id("profileName");
+					if (nm) nm.textContent = name;
+					var av = $id("profileAvatar"), ini = $id("profileAvatarInitial");
+					var u = (typeof getCurrentUserObj === "function" && getCurrentUserObj()) || {};
+					if (av && !u.avatar_url) {
+						av.style.backgroundImage = "none";
+						av.style.backgroundColor = pfColour;
+						if (ini) { ini.style.display = ""; ini.textContent = (name.charAt(0) || "?").toUpperCase(); }
+					}
+					pfMsg("Saved", "ok");
+					if (window.notify) window.notify("Profile updated", "info");
+					setTimeout(function () { pfSetOpen(false); }, 900);
+				} else {
+					pfMsg((res && res.message) || "Couldn't save your profile.", "err");
+				}
+			}).catch(function () {
+				if (btn) { btn.disabled = false; btn.textContent = "Save changes"; }
+				pfMsg("Can't reach the server.", "err");
+			});
+		}
+		function setupProfileEditor() {
+			var toggle = $id("pfEditToggle");
+			if (toggle) toggle.addEventListener("click", function () {
+				var panel = $id("pfEdit");
+				pfSetOpen(!!(panel && panel.hidden));
+			});
+			var bio = $id("pfBio");
+			if (bio) bio.addEventListener("input", pfBioCount);
+			var save = $id("pfSave");
+			if (save) save.addEventListener("click", pfSave);
+			var cancel = $id("pfCancel");
+			if (cancel) cancel.addEventListener("click", function () { pfSetOpen(false); });
 		}
 
 		/* ---- Avatar upload: resize client-side to a small square, then save ---- */
@@ -4046,6 +4226,15 @@
 			if (openProfileLink) openProfileLink.addEventListener("click", function (e) { e.preventDefault(); openProfile(); });
 			var profileClose = $id("profileClose");
 			if (profileClose) profileClose.addEventListener("click", closeProfile);
+			setupProfileEditor();
+			// "Edit profile" in the account menu opens the profile in place with
+			// the editor already expanded, instead of leaving the songs page.
+			var editProfileLink = $id("editProfileLink");
+			if (editProfileLink) editProfileLink.addEventListener("click", function (e) {
+				e.preventDefault();
+				openProfile();
+				pfSetOpen(true);
+			});
 			var openLikedBtn = $id("openLikedBtn");
 			if (openLikedBtn) openLikedBtn.addEventListener("click", openLiked);
 			var newPlaylistBtn = $id("newPlaylistBtn");
@@ -4392,6 +4581,30 @@
         <div class="profile-stats">
           <span id="statLikes">0 liked</span><i></i><span id="statPlaylists">0 playlists</span>
         </div>
+        <button type="button" class="pf-edit-btn" id="pfEditToggle" aria-expanded="false" aria-controls="pfEdit">Edit profile</button>
+      </div>
+    </div>
+
+    <!-- Inline editor: display name, bio and avatar colour, saved in place -->
+    <div class="pf-edit" id="pfEdit" hidden>
+      <h3 class="pf-edit__head">Profile details</h3>
+      <div class="pf-field">
+        <label for="pfName">Display name</label>
+        <input type="text" id="pfName" maxlength="40" placeholder="How should we show your name?" />
+      </div>
+      <div class="pf-field">
+        <label for="pfBio">Short bio</label>
+        <textarea id="pfBio" rows="3" maxlength="300" placeholder="Tell us a little about yourself"></textarea>
+        <div class="pf-count" id="pfBioCount">0 / 300</div>
+      </div>
+      <div class="pf-field">
+        <label id="pfColourLabel">Avatar colour</label>
+        <div class="pf-swatches" id="pfSwatches" role="group" aria-labelledby="pfColourLabel"></div>
+      </div>
+      <div class="pf-actions">
+        <button type="button" class="pf-save" id="pfSave">Save changes</button>
+        <button type="button" class="pf-cancel" id="pfCancel">Cancel</button>
+        <span class="pf-msg" id="pfMsg" role="status" aria-live="polite"></span>
       </div>
     </div>
 
