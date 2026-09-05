@@ -113,6 +113,34 @@ async function resendOtp(email) {
 	return { ok: true, message: "A new code is on its way." };
 }
 
+/* ---------- password reset ----------
+ * forgot -> emails a code; verifyReset -> exchanges the code for a one-time
+ * reset token; resetPassword -> sets the new password with that token and
+ * signs the user in. */
+
+async function forgotPassword(email) {
+	const res = await _request("/forgot", { method: "POST", body: { email: email } });
+	// Always "ok" from the server, to avoid revealing which emails exist.
+	return res.ok ? { ok: true } : { ok: false, message: res.message };
+}
+
+async function verifyReset(email, code) {
+	const res = await _request("/reset/verify", { method: "POST", body: { email: email, code: code } });
+	if (!res.ok) return { ok: false, message: res.message };
+	return { ok: true, resetToken: res.resetToken };
+}
+
+async function resetPassword(email, token, password) {
+	const res = await _request("/reset", {
+		method: "POST",
+		body: { email: email, token: token, password: password },
+	});
+	if (!res.ok) return { ok: false, message: res.message };
+	_user = _shape(res.user);
+	_readyPromise = Promise.resolve(_user);
+	return { ok: true, user: _user };
+}
+
 async function logOut() {
 	await _request("/logout", { method: "POST" });
 	_user = null;

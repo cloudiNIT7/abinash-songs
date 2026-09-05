@@ -99,6 +99,46 @@ export function clearSessionCookie() {
 	return `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
 }
 
+/* ---------- password-reset token ----------
+ * A short-lived signed token handed to the client after it proves email
+ * ownership (via the emailed code). It authorises exactly one password change.
+ * The "reset." prefix domain-separates it from session cookies, so neither can
+ * be used in place of the other. */
+const RESET_TTL_SECONDS = 15 * 60;
+
+export async function createResetToken(env, email) {
+	const payload = b64urlEncode(enc.encode(JSON.stringify({
+		email,
+		p: "reset",
+		exp: Math.floor(Date.now() / 1000) + RESET_TTL_SECONDS,
+	})));
+	const sig = b64urlEncode(await hmac(sessionSecret(env), "reset." + payload));
+	return `${payload}.${sig}`;
+}
+
+export async function verifyResetToken(env, token) {
+	if (!token || !token.includes(".")) return null;
+	const [payload, sig] = token.split(".");
+	let expected;
+	try {
+		expected = b64urlEncode(await hmac(sessionSecret(env), "reset." + payload));
+	} catch (e) {
+		return null;
+	}
+	if (!safeEqual(sig, expected)) return null;
+	let claims;
+	try {
+		claims = JSON.parse(new TextDecoder().decode(b64urlDecode(payload)));
+	} catch (e) {
+		return null;
+	}
+	if (!claims || claims.p !== "reset" || !claims.email || !claims.exp ||
+		claims.exp < Math.floor(Date.now() / 1000)) {
+		return null;
+	}
+	return claims.email;
+}
+
 function sessionSecret(env) {
 	const secret = env.SESSION_SECRET;
 	if (!secret) throw new Error("SESSION_SECRET is not configured on this project.");
@@ -314,14 +354,19 @@ export async function checkOtp(env, email, code) {
 }
 
 function otpEmail(email, code, purpose) {
-	const heading = purpose === "login" ? "Confirm your sign-in" : "Confirm your email";
+	const heading = purpose === "login" ? "Confirm your sign-in"
+		: purpose === "reset" ? "Reset your password"
+		: "Confirm your email";
+	const intro = purpose === "reset"
+		? "Use this code to reset your Cloud Songs password:"
+		: heading + ". Enter this code to continue:";
 	const text =
 		`Your Cloud Songs verification code is ${code}\n\n` +
 		`It expires in 10 minutes. If you didn't request this, you can ignore this email.`;
 	const html =
 		`<div style="font-family:Arial,Helvetica,sans-serif;max-width:440px;margin:0 auto;padding:24px;color:#111">` +
 		`<h2 style="margin:0 0 6px;color:#1DB954">Cloud Songs</h2>` +
-		`<p style="margin:0 0 18px;font-size:15px;color:#333">${heading}. Enter this code to continue:</p>` +
+		`<p style="margin:0 0 18px;font-size:15px;color:#333">${intro}</p>` +
 		`<div style="font-size:34px;font-weight:700;letter-spacing:8px;background:#f4f4f4;border-radius:10px;` +
 		`padding:16px 0;text-align:center;color:#111">${code}</div>` +
 		`<p style="margin:18px 0 0;font-size:12px;color:#888">This code expires in 10 minutes. ` +

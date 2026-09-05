@@ -137,6 +137,17 @@
 				color: var(--white);
 				text-decoration: underline;
 			}
+			.login_forgot {
+				text-align: center;
+				margin: 18px 0 0;
+			}
+			.login_forgot a {
+				color: var(--white);
+				font-size: 13px;
+				font-weight: 700;
+				text-decoration: underline;
+			}
+			.login_forgot a:hover { color: #1DB954; }
 		</style>
 	</head>
 	<body>
@@ -172,6 +183,9 @@
 					<button type="submit" class="login_submit" id="authSubmit">Log In</button>
 				</form>
 
+				<p class="login_forgot" id="forgotWrap">
+					<a href="./reset-password.html" id="forgotLink">Forgot your password?</a>
+				</p>
 				<a href="./index.html" class="login_back">&larr; Back to home</a>
 			</div>
 		</div>
@@ -210,11 +224,21 @@
 					usernameField.style.display = "";
 					usernameInput.required = true;
 				}
+				// "Forgot password" only makes sense when logging in.
+				var forgotWrap = document.getElementById("forgotWrap");
+				if (forgotWrap) forgotWrap.style.display = mode === "login" ? "" : "none";
 			}
 
 			setMode("login");
 			tabLogin.addEventListener("click", () => setMode("login"));
 			tabSignup.addEventListener("click", () => setMode("signup"));
+
+			// Carry whatever email is typed over to the reset page.
+			var forgotLink = document.getElementById("forgotLink");
+			if (forgotLink) forgotLink.addEventListener("click", function () {
+				var e = document.getElementById("email").value.trim();
+				forgotLink.href = "./reset-password.html" + (e ? "?email=" + encodeURIComponent(e) : "");
+			});
 
 			// If already logged in, skip straight past the form.
 			authReady().then(() => {
