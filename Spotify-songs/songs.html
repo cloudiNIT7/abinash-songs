@@ -980,8 +980,9 @@
 			.top-search { flex:1 1 auto; min-width:0; margin-left:2px; height:40px; box-sizing:border-box; }
 			.top-search__input { padding-left:12px; font-size:13px; }
 			.spacer { display:none; }
-			/* Bell + avatar aligned on the same centre line as the search box */
-			.user { gap:6px !important; flex:0 0 auto; align-items:center; }
+			/* Bell + avatar aligned on the same centre line as the search box.
+			   app.css puts a 15px top margin on .user which pushed them down. */
+			.user { gap:6px !important; flex:0 0 auto; align-items:center; margin:0 !important; }
 			.user-chip__name { display:none; }
 			.user-chip__chev { display:none; }
 			.user-chip { padding:0; background:none; }
