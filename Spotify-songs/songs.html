@@ -969,6 +969,47 @@
 		}
 		.pl-card__meta { font-size:11px; color:#9b9b9b; margin-top:3px; }
 
+		/* ---- "For you" rows on the home view (most played + recommended) ---- */
+		.for-you:empty { display:none; }
+		.for-you .fy-section { margin-bottom:10px; }
+		.fy-row {
+			display:flex; gap:14px; overflow-x:auto; padding:2px 26px 14px;
+			scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch;
+		}
+		.fy-row::-webkit-scrollbar { height:8px; }
+		.fy-row::-webkit-scrollbar-thumb { background:rgba(255,255,255,.15); border-radius:8px; }
+		.fy-card {
+			flex:0 0 auto; width:150px; scroll-snap-align:start;
+			background:#181818; border-radius:10px; padding:10px; cursor:pointer;
+			transition:background .2s ease, transform .2s ease;
+		}
+		.fy-card:hover { background:#242424; transform:translateY(-3px); }
+		.fy-card__art {
+			position:relative; width:100%; aspect-ratio:1/1; border-radius:7px; overflow:hidden;
+			background:#2a2a2a; box-shadow:0 6px 18px rgba(0,0,0,.45); margin-bottom:9px;
+		}
+		.fy-card__art img { width:100%; height:100%; object-fit:cover; display:block; }
+		.fy-card__play {
+			position:absolute; bottom:8px; right:8px; width:36px; height:36px; border-radius:50%;
+			background:var(--sp-green); display:flex; align-items:center; justify-content:center;
+			box-shadow:0 5px 14px rgba(0,0,0,.5); opacity:0; transform:translateY(6px);
+			transition:opacity .2s, transform .2s;
+		}
+		.fy-card:hover .fy-card__play { opacity:1; transform:none; }
+		.fy-card__play svg { width:16px; height:16px; fill:#000; }
+		.fy-card__title {
+			font-size:13px; font-weight:600; color:#eee; line-height:1.3;
+			display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+		}
+		.fy-card__artist {
+			font-size:11px; color:#9b9b9b; margin-top:3px;
+			white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+		}
+		@media (max-width:768px){
+			.fy-row { padding:2px 12px 12px; gap:12px; }
+			.fy-card { width:132px; }
+		}
+
 		/* ===================================================================
 		   Mobile bottom tab bar.
 		   On phones the header nav pills and the sidebar are hidden, so this
@@ -1396,6 +1437,7 @@
 
                 <!-- ---- View 1: every language as a banner ---- -->
                 <div id="viewLanguages">
+                  <div id="forYou" class="for-you"></div>
                   <div class="section-title">Choose a language</div>
                   <div class="lang-chips" id="langChips" role="tablist" aria-label="Languages"></div>
                 </div>
@@ -2106,6 +2148,8 @@
 	(function () {
 		var FALLBACK_ART = "../Spotify-songs/icon.png";
 		var RECENT_KEY = "saavn:recent";
+		var PLAYS_KEY = "cloudsongs:plays";     // trackId -> {track, count}
+		var SEARCH_KEY = "cloudsongs:searches"; // recent search terms
 		var LANG_KEY = "cloudsongs:lang";
 		var RECENT_MAX = 40;
 		var VISIBLE_COUNT = 5;
@@ -2186,6 +2230,68 @@
 			copy.played_at = Date.now();
 			list.unshift(copy);
 			writeRecent(list.slice(0, RECENT_MAX));
+			bumpPlay(copy);
+		}
+
+		/* ---------- personalization: play counts + searches ---------- */
+
+		function _read(key, fallback) {
+			try { var r = localStorage.getItem(key); return r ? JSON.parse(r) : fallback; }
+			catch (e) { return fallback; }
+		}
+		function _write(key, val) {
+			try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
+		}
+
+		// Count how often each track is played, keeping a light copy so the
+		// "Most played" row can render (and play) without re-fetching.
+		function bumpPlay(track) {
+			if (!track || !track.id) return;
+			var plays = _read(PLAYS_KEY, {});
+			var slim = {
+				id: track.id, url: track.url, art: track.art,
+				name: track.name, artist: track.artist,
+				album: track.album, year: track.year, duration: track.duration,
+			};
+			var rec = plays[track.id] || { count: 0 };
+			rec.count += 1;
+			rec.at = Date.now();
+			rec.track = slim;
+			plays[track.id] = rec;
+			_write(PLAYS_KEY, plays);
+		}
+		function mostPlayed(limit) {
+			var plays = _read(PLAYS_KEY, {});
+			var arr = [];
+			for (var id in plays) if (plays[id] && plays[id].track && plays[id].track.url) arr.push(plays[id]);
+			arr.sort(function (a, b) { return (b.count - a.count) || (b.at - a.at); });
+			return arr.slice(0, limit || 12).map(function (r) { return r.track; });
+		}
+		function topPlayedArtist() {
+			var plays = _read(PLAYS_KEY, {});
+			var byArtist = {};
+			for (var id in plays) {
+				var t = plays[id] && plays[id].track;
+				if (!t || !t.artist) continue;
+				var first = String(t.artist).split(",")[0].trim();
+				if (first) byArtist[first] = (byArtist[first] || 0) + plays[id].count;
+			}
+			var best = null, bestN = 0;
+			for (var a in byArtist) if (byArtist[a] > bestN) { bestN = byArtist[a]; best = a; }
+			return best;
+		}
+
+		// Remember what the user searches (plain terms only, not pasted links).
+		function recordSearch(query) {
+			var q = String(query || "").trim();
+			if (!q || /^https?:\/\//i.test(q)) return;
+			var list = _read(SEARCH_KEY, []).filter(function (t) { return t.toLowerCase() !== q.toLowerCase(); });
+			list.unshift(q);
+			_write(SEARCH_KEY, list.slice(0, 20));
+		}
+		function topSearch() {
+			var list = _read(SEARCH_KEY, []);
+			return list.length ? list[0] : null;
 		}
 
 		/* ---------- rendering ---------- */
@@ -2501,6 +2607,7 @@
 
 		function search(query) {
 			var isLink = /^https?:\/\//i.test(query) && /saavn/i.test(query);
+			recordSearch(query);
 			var path = isLink
 				? "/result/?query=" + encodeURIComponent(query)
 				: "/song/?query=" + encodeURIComponent(query);
@@ -2853,7 +2960,88 @@
 			if (viewSongsEl) viewSongsEl.hidden = true;
 			document.body.classList.add("picking-language");
 			if (window.setMobileTab) window.setMobileTab("songs");
+			renderForYou();
 			window.scrollTo({ top: 0, behavior: "smooth" });
+		}
+
+		/* ---------- "For you": most played + recommended from searches ----------
+		 * Built on the home view from what the user has actually played and
+		 * searched on this device. Hidden entirely when there's no history. */
+		function fyCard(track, onClick) {
+			var card = document.createElement("div");
+			card.className = "fy-card";
+			card.setAttribute("role", "button");
+			card.setAttribute("tabindex", "0");
+			var artWrap = document.createElement("div");
+			artWrap.className = "fy-card__art";
+			var img = document.createElement("img");
+			img.src = track.art || FALLBACK_ART; img.alt = ""; img.loading = "lazy";
+			img.addEventListener("error", function () { img.src = FALLBACK_ART; });
+			var play = document.createElement("span");
+			play.className = "fy-card__play";
+			play.innerHTML = PLAY_SVG;
+			artWrap.appendChild(img); artWrap.appendChild(play);
+			var title = document.createElement("div");
+			title.className = "fy-card__title"; title.textContent = track.name || "Untitled";
+			var artist = document.createElement("div");
+			artist.className = "fy-card__artist"; artist.textContent = track.artist || "";
+			card.appendChild(artWrap); card.appendChild(title); card.appendChild(artist);
+			card.addEventListener("click", onClick);
+			card.addEventListener("keydown", function (e) {
+				if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); }
+			});
+			return card;
+		}
+
+		function fySection(title, tracks) {
+			var wrap = document.createElement("div");
+			wrap.className = "fy-section";
+			var h = document.createElement("div");
+			h.className = "section-title"; h.textContent = title;
+			var row = document.createElement("div");
+			row.className = "fy-row";
+			// Playing a card loads that row as the current list and starts there.
+			tracks.forEach(function (t, i) {
+				row.appendChild(fyCard(t, function () {
+					if (window.setMobileTab) window.setMobileTab("songs");
+					moreQueue = []; fetchingMore = false;
+					showSongsView();
+					setTracks(tracks, title, title);
+					if (window.SpotifyPlayer) window.SpotifyPlayer.playIndex(i);
+				}));
+			});
+			wrap.appendChild(h); wrap.appendChild(row);
+			if (window.forceIconRepaint) window.forceIconRepaint(row);
+			return wrap;
+		}
+
+		function renderForYou() {
+			var host = document.getElementById("forYou");
+			if (!host) return;
+			host.innerHTML = "";
+
+			var played = mostPlayed(12);
+			if (played.length) host.appendChild(fySection("Most played", played));
+
+			// Recommended: search the top term (or the most-played artist) and
+			// show songs. Appended asynchronously so the home view isn't blocked.
+			var term = topSearch() || topPlayedArtist();
+			if (!term) return;
+			var label = topSearch() ? ('More like "' + term + '"') : ("Because you like " + term);
+			fetch("/song/?query=" + encodeURIComponent(term) + "&songdata=true", { headers: { Accept: "application/json" } })
+				.then(function (r) { return r.ok ? r.json() : []; })
+				.then(function (data) {
+					var songs = Object.prototype.toString.call(data) === "[object Array]" ? data : (data.songs || []);
+					var recs = songs
+						.filter(function (s) { return s && s.media_url; })
+						.map(toTrack)
+						.slice(0, 12);
+					// Don't re-render if the user already navigated away.
+					if (recs.length && document.getElementById("forYou") === host && !viewLanguagesEl.hidden) {
+						host.appendChild(fySection(label, recs));
+					}
+				})
+				.catch(function () { /* recommendations are best-effort */ });
 		}
 
 		function showSongsView() {
