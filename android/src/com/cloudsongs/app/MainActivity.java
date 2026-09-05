@@ -85,7 +85,6 @@ public class MainActivity extends Activity {
 				CookieManager.getInstance().setAcceptCookie(true);
 				CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
 			} catch (Throwable ignored) {}
-
 			web.addJavascriptInterface(new MediaBridge(), "AndroidMedia");
 
 			web.setWebViewClient(new WebViewClient() {
@@ -96,6 +95,9 @@ public class MainActivity extends Activity {
 				@Override
 				public void onPageFinished(WebView view, String url) {
 					injectMediaWatcher();
+					// Capture the session cookie right after a login/redirect so the
+					// profile stays signed in across app restarts.
+					try { CookieManager.getInstance().flush(); } catch (Throwable ignored) {}
 				}
 			});
 			web.setWebChromeClient(new WebChromeClient() {
@@ -246,6 +248,9 @@ public class MainActivity extends Activity {
 	protected void onPause() {
 		super.onPause();
 		try { if (web != null) web.resumeTimers(); } catch (Throwable ignored) {}
+		// Persist the signed-in session cookie to disk, otherwise the login (and
+		// therefore the user's profile) is lost when the app is closed.
+		try { CookieManager.getInstance().flush(); } catch (Throwable ignored) {}
 	}
 
 	@Override
