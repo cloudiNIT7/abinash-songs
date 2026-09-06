@@ -91,18 +91,36 @@ account for most of it, so the work is done once per colo instead of once per
 request.
 
 `functions/_lib/cache.js` wraps every read endpoint (`/song/`, `/playlist/`,
-`/album/`, `/artist/`, `/lyrics/`, `/browse/`, `/result/`) and stores the
-finished JSON in `caches.default`. Pages Functions responses are not cached by
-Cloudflare on their own, so without this every hit costs a Function invocation
-plus the decrypt/format work.
+`/album/`, `/artist/`, `/lyrics/`, `/browse/`, `/result/`) and caches the
+finished JSON. Pages Functions responses are not cached by Cloudflare on their
+own, so without this every hit costs a Function invocation plus the
+decrypt/format work.
 
-- Freshness comes from each response's own `Cache-Control`, set through
-  `json({ maxAge, swr })`. `fail()` uses `max-age=0` and is never stored.
+Where entries live depends on the bindings:
+
+| Store | When | Reach |
+| --- | --- | --- |
+| KV namespace bound as `CACHE` | preferred | shared by every machine and colo: one miss warms the answer globally |
+| `caches.default` | fallback, no binding needed | only the machine that stored it, so a patchy hit ratio until traffic is high |
+
+A namespace already exists for this - `CACHE`, id
+`6b3a76872b414a1f87ae744452003d99`. To switch the cache over to it, add the
+binding once: **Pages project → Settings → Functions → KV namespace bindings →
+Add**, variable name `CACHE`. Nothing else changes; `X-Cache-Store: kv` on a miss
+confirms it took effect. (Do not move these bindings into a `wrangler.toml`: for
+Pages, that file becomes the source of truth and the dashboard's `DB` and
+`SESSION_SECRET` bindings would be dropped.)
+
+Freshness comes from each response's own `Cache-Control`, set through
+`json({ maxAge, swr })`:
+
+- `fail()` uses `max-age=0` and is never stored, and neither is a `200` whose
+  body is `{status:false}` - caching an upstream error would pin it in place.
 - Past `max-age`, an entry inside its `stale-while-revalidate` window is served
-  immediately while one request refreshes it behind the scenes - so a popular
+  immediately while one request refreshes it behind the scenes, so a popular
   entry expiring does not send a herd upstream.
-- If JioSaavn is failing, an expired copy is served rather than an error
-  (`X-Cache: STALE-ERROR`). Entries are kept for a day beyond their stale window
+- If JioSaavn is failing, an expired copy is served instead of an error
+  (`X-Cache: STALE-ERROR`). Entries are kept a day beyond their stale window
   purely for that.
 - Cache keys use only the meaningful params, sorted, with search terms trimmed
   and lower-cased, so `?query=Kesariya`, `?query=kesariya%20` and
@@ -110,11 +128,11 @@ plus the decrypt/format work.
   because JioSaavn permalink tokens are case-sensitive.
 - Searches longer than 200 characters are refused with 414 before any subrequest.
 
-Every response carries `X-Cache: HIT | STALE | STALE-ERROR | MISS`, which is the
-quickest way to see whether traffic is actually being absorbed:
+Every response carries `X-Cache: HIT | STALE | STALE-ERROR | MISS | OFF`, which
+is the quickest way to see whether traffic is being absorbed:
 
 ```sh
-curl -sI "https://abinash-songs.pages.dev/artist/?query=arijit+singh" | grep -i x-cache
+curl -s -o /dev/null -D - "https://abinash-songs.pages.dev/artist/?query=arijit+singh" | grep -i x-cache
 ```
 
 On the authenticated side, `currentUser()` resolves the account and its session
@@ -123,14 +141,12 @@ in a single D1 query, and the session's "last active" write is handed to
 follows what the tab is doing: every 20s while it is playing, every 60s when it
 is idle, plus an immediate check on focus, tab switch and reconnect.
 
-Not available on this project yet, because it is served from `pages.dev` with no
-custom domain and therefore no zone: WAF rate limiting rules, Cache Rules, and
-tiered-cache configuration. Adding a custom domain unlocks all three, and a
-per-IP rate limiting rule on `/song/*`, `/artist/*` and `/api/auth/login` would
-be the first thing worth adding. Note also that concurrent misses for the same
-cold key are not collapsed - each one runs the handler - so a brand-new viral
-entry still costs one upstream call per concurrent request until the first store
-lands.
+Still worth doing, but not possible while the site is only on `pages.dev` with no
+zone: WAF rate limiting rules (per-IP, on `/song/*`, `/artist/*` and
+`/api/auth/login` first), Cache Rules, and tiered caching. Adding a custom domain
+unlocks all three. Note also that concurrent misses for the same cold key are not
+collapsed - each one runs the handler - so a brand-new viral entry still costs one
+upstream call per concurrent request until the first store lands.
 
 ## Manual upload (fallback only)
 

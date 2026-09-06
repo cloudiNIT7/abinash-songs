@@ -14,7 +14,7 @@ Live: https://abinash-songs.pages.dev
 | `login.html`, `verify-otp.html`, `profile.html` | Account flow (browser-only, see note) |
 | `Spotify-songs/songs.html` | The web player: search, playlists, queue, lyrics, now-playing |
 | `functions/` | The API: `/song/`, `/song/get/`, `/playlist/`, `/album/`, `/artist/`, `/lyrics/`, `/result/` |
-| `functions/_lib/cache.js` | Edge cache for those endpoints: TTL + stale-while-revalidate, and a last-good-copy fallback when JioSaavn fails |
+| `functions/_lib/cache.js` | Response cache for those endpoints: KV when a `CACHE` namespace is bound, otherwise `caches.default`; TTL + stale-while-revalidate, and a last-good-copy fallback when JioSaavn fails |
 | `functions/_lib/des.js` | DES-ECB decrypt for JioSaavn's `encrypted_media_url` (WebCrypto has no DES) |
 | `functions/api/auth/` | Signup, login, logout, session and profile endpoints |
 | `functions/_lib/auth.js` | PBKDF2 hashing, signed session cookies, login throttling |
