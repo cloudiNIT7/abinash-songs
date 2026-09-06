@@ -4,7 +4,7 @@
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no, viewport-fit=cover" />
 	<title>Cloud Songs - G-Eazy</title>
-	<link rel="icon" href="../assets/favicon.png?v=20260906d" />
+	<link rel="icon" href="../assets/favicon.png?v=20260906e" />
 	<link rel="manifest" href="../manifest.webmanifest" />
 	<meta name="theme-color" content="#121212" />
 	<meta name="mobile-web-app-capable" content="yes" />
@@ -34,7 +34,7 @@
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/9.2.0/nouislider.min.css" />
 
 	<!-- Compiled app styles -->
-	<link rel="stylesheet" href="../css/app.css?v=20260906d" />
+	<link rel="stylesheet" href="../css/app.css?v=20260906e" />
 
 	<style>
 		/* Small additions so the embedded page fits nicely inside this project */
@@ -1203,6 +1203,15 @@
 		.approval-modal__hint { color:#6f6f6f; font-size:11.5px; margin:12px 0 0; line-height:1.5; }
 		/* Approve / Deny inside a notification row */
 		.notif-actions { display:flex; gap:8px; margin-top:8px; }
+		/* "Turn on desktop alerts" inside the notification panel */
+		.notif-enable {
+			display:block; width:calc(100% - 24px); margin:0 12px 10px;
+			background:rgba(29,185,84,.12); border:1px solid rgba(29,185,84,.4); color:#fff;
+			border-radius:10px; padding:9px 12px; font-size:12.5px; font-weight:700;
+			font-family:inherit; cursor:pointer; transition:background .16s;
+		}
+		.notif-enable:hover { background:rgba(29,185,84,.2); }
+		.notif-enable:disabled { opacity:.6; cursor:default; }
 		.notif-act {
 			border-radius:999px; padding:5px 12px; font-size:11.5px; font-weight:800; font-family:inherit;
 			cursor:pointer; border:1px solid transparent;
@@ -1971,7 +1980,7 @@
 	<!-- Single-row header: brand + nav on the left, user controls on the right -->
 	<div class="app-topbar header">
 		<a href="#" class="brand" id="brandHome" title="Home">
-			<img class="brand__logo" src="../assets/logo.png?v=20260906d" alt="" />
+			<img class="brand__logo" src="../assets/logo.png?v=20260906e" alt="" />
 			<span class="brand__text">Cloud Songs</span>
 		</a>
 		<nav class="top-nav">
@@ -2991,7 +3000,7 @@
 </script>
 
 <!-- Language -> playlist catalogue, consumed by the data layer below -->
-<script src="../js/catalogue.js?v=20260906d"></script>
+<script src="../js/catalogue.js?v=20260906e"></script>
 
 <!-- ===================================================================
      JioSaavn data layer. Replaces the old S3 /api/songs + /api/videos
@@ -5306,7 +5315,7 @@
 <!-- Auth guard + personalization. Accounts live on the server (D1 via
      /api/auth/*, see js/auth.js); the browser only holds an HttpOnly
      session cookie, so this gate is enforced server-side. -->
-<script src="../js/auth.js?v=20260906d"></script>
+<script src="../js/auth.js?v=20260906e"></script>
 <script>
 	authReady().then(function () {
 		if (!isLoggedIn()) {
@@ -5559,6 +5568,33 @@
 			var head = document.createElement("div");
 			head.className = "notif-head"; head.textContent = "Notifications";
 			notifPanel.appendChild(head);
+
+			// Offer system alerts while they are neither granted nor blocked, so
+			// a sign-in request can reach the desktop and not just this tab.
+			if ("Notification" in window && Notification.permission === "default") {
+				var ask = document.createElement("button");
+				ask.type = "button";
+				ask.className = "notif-enable";
+				ask.textContent = "Turn on desktop alerts";
+				ask.addEventListener("click", function (e) {
+					e.stopPropagation();
+					ask.disabled = true;
+					var done = function (state) {
+						ask.remove();
+						if (state === "granted") {
+							addNotification("Desktop alerts are on. Sign-in requests will show on your system too.", "success");
+						} else {
+							addNotification("Desktop alerts were not allowed. Requests still appear here.", "info");
+						}
+					};
+					try {
+						var p = Notification.requestPermission(done);
+						if (p && p.then) p.then(done);
+					} catch (err) { done("denied"); }
+				});
+				notifPanel.appendChild(ask);
+			}
+
 			if (!items.length) {
 				var e = document.createElement("div");
 				e.className = "notif-empty"; e.textContent = "You're all caught up.";
@@ -5749,6 +5785,7 @@
 		/** Answer a request, from the pop-up or from the notification centre. */
 		function decide(a, approve) {
 			answered[a.id] = true;
+			closeSystemAlert(a.id);
 			return post("/api/me/approvals", { id: a.id, action: approve ? "approve" : "deny" }).then(function (res) {
 				var ok = !!(res && res.ok);
 				var msg = ok
@@ -5782,10 +5819,41 @@
 							],
 						);
 					}
+					systemAlert(a);
 				}
 				// One pop-up at a time; the rest wait in the notification centre.
 				if (!current) showModal(a);
 			});
+		}
+
+		/* ---- system (OS) notification ----------------------------------------
+		 * This tab is often not the window in front, so raise the request with
+		 * the operating system too. Needs permission, which is asked for from the
+		 * notification centre; without it this is simply skipped. */
+		var systemNotes = {};
+
+		function systemAlert(a) {
+			if (!("Notification" in window) || Notification.permission !== "granted") return;
+			try {
+				var note = new Notification("Approve sign-in to Cloud Songs?", {
+					body: describe(a) + (detail(a) ? "\n" + detail(a) : ""),
+					tag: "cs-approval-" + a.id,          // replaces itself, never stacks
+					icon: "../assets/logo-square.png",
+					badge: "../assets/logo-square.png",
+					requireInteraction: true,             // stays up until answered
+				});
+				note.onclick = function () {
+					try { window.focus(); } catch (e) { /* not always permitted */ }
+					if (!answered[a.id]) showModal(a);
+					note.close();
+				};
+				systemNotes[a.id] = note;
+			} catch (e) { /* some browsers refuse from a hidden tab */ }
+		}
+
+		function closeSystemAlert(id) {
+			var note = systemNotes[id];
+			if (note) { try { note.close(); } catch (e) {} delete systemNotes[id]; }
 		}
 
 		// This script sits above the pop-up's markup in the document, so wire it
@@ -5820,6 +5888,7 @@
 
 			ready = true;
 			queued.splice(0).forEach(check);
+			listen();
 		}
 		if (document.readyState === "loading") {
 			document.addEventListener("DOMContentLoaded", init);
@@ -5827,7 +5896,58 @@
 			init();
 		}
 
-		window.CSApprovals = { check: check };
+		/* ---- delivery: hold a connection open instead of waiting for a poll ---
+		 * /api/me/approvals/wait answers the moment a request appears and
+		 * otherwise gives up after ~25s, so a request lands here in about a
+		 * second. While the tab is hidden we stop holding a connection and let
+		 * the ordinary session poll cover it, then reconnect on the way back. */
+		var listening = false;
+		var retryIn = 1000;
+
+		function listen() {
+			if (listening || !ready) return;
+			if (document.hidden) return;                 // reconnects on visibilitychange
+			listening = true;
+
+			var controller = ("AbortController" in window) ? new AbortController() : null;
+			var giveUp = setTimeout(function () { if (controller) controller.abort(); }, 32000);
+
+			fetch("/api/me/approvals/wait", {
+				credentials: "same-origin",
+				cache: "no-store",
+				signal: controller ? controller.signal : undefined,
+			})
+				.then(function (r) {
+					if (r.status === 401 && window.CSForceSignOut) { window.CSForceSignOut(); return null; }
+					return r.ok ? r.json() : null;
+				})
+				.then(function (d) {
+					clearTimeout(giveUp);
+					listening = false;
+					if (d && d.approvals && d.approvals.length) {
+						check(d.approvals);
+						retryIn = 1000;
+						listen();                            // straight back to waiting
+						return;
+					}
+					if (d && d.unavailable) return;          // nothing to listen for
+					retryIn = 1000;
+					listen();
+				})
+				.catch(function () {
+					clearTimeout(giveUp);
+					listening = false;
+					// Offline or a dropped connection: back off, but keep trying.
+					retryIn = Math.min(retryIn * 2, 30000);
+					setTimeout(listen, retryIn);
+				});
+		}
+
+		document.addEventListener("visibilitychange", function () { if (!document.hidden) listen(); });
+		window.addEventListener("focus", listen);
+		window.addEventListener("online", function () { retryIn = 1000; listen(); });
+
+		window.CSApprovals = { check: check, listen: listen };
 	})();
 </script>
 

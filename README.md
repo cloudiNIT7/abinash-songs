@@ -58,7 +58,9 @@ as the tab is focused - and returns to the login screen. A password reset ends
 every session the same way.
 
 While an account has a recently-used session, a new sign-in with the right
-password is parked in `login_approvals` until one of those devices approves it -
-raised there as a pop-up and as an Approve/Deny notification. Denying keeps the
-new device out; nothing answers within 5 minutes and it expires. An emailed code
-is offered as a fallback for when no device is reachable.
+password is parked in `login_approvals` until one of those devices approves it.
+That device holds a long poll open, so the request reaches it in about half a
+second, and is raised three ways: a pop-up, an Approve/Deny notification, and a
+system notification once desktop alerts are allowed. Denying keeps the new device
+out; nothing answers within 5 minutes and it expires. An emailed code is offered
+as a fallback for when no device is reachable.

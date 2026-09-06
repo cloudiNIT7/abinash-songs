@@ -63,6 +63,7 @@ cannot be forged from devtools the way the old localStorage gate could.
 | `GET /api/auth/approval?id=` | Waiting device: has this sign-in been approved yet? |
 | `POST /api/auth/approval` | Waiting device: `{id}` exchanges an approved request for a session |
 | `GET /api/me/approvals` | Sign-ins waiting for this device to answer |
+| `GET /api/me/approvals/wait` | The same, but held open until one appears (long poll) |
 | `POST /api/me/approvals` | `{id, action}` approves or denies one |
 
 Bindings on the Pages project (production and preview):
@@ -95,16 +96,36 @@ sign-in with the right password does not get in on its own: it is parked, and on
 of those devices has to approve it.
 
 - `POST /api/auth/login` returns `{requiresApproval, approvalId, expiresIn}` and
-  no cookie. The login page waits on that id and offers "Email me a code instead"
-  as a fallback.
-- The signed-in device learns about it through its existing session poll
-  (`/api/auth/me?approvals=1`) and raises it twice: a pop-up, and an entry with
-  Approve/Deny in the notification centre, so dismissing the pop-up loses nothing.
+  no cookie. The login page polls that id every second and offers "Email me a
+  code instead" as a fallback.
+- The signed-in device holds a long poll open on `/api/me/approvals/wait`, which
+  answers the moment a request appears - measured at 26 ms server-side and around
+  half a second to the pop-up, rather than waiting for the next session poll. The
+  connection is only held while the tab is visible; hidden tabs fall back to the
+  ordinary session poll (`/api/auth/me?approvals=1`) and reconnect when they come
+  back. A dropped connection backs off and retries.
+- It is raised three ways: a pop-up, an Approve/Deny entry in the notification
+  centre (so dismissing the pop-up loses nothing), and a system notification when
+  the browser has been given permission - offered as "Turn on desktop alerts" in
+  the notification panel. The system notification is tagged per request so it
+  replaces rather than stacks, stays up until answered, and is dismissed
+  automatically once the request is answered anywhere.
 - Approving lets the waiting device claim a session, once, and only from the same
   browser it asked from (the request records its User-Agent). Denying keeps it out
   and tells it so. Unanswered requests expire after 5 minutes.
 - If every session has gone quiet for more than 7 days, sign-in proceeds without
   approval - otherwise an abandoned session row would lock the owner out.
+
+Cost of the long poll: `wait.js` checks the table once a second for up to 25
+seconds, so a visible tab costs roughly one D1 read per second - more than the
+old poll, which is the price of the latency. `WINDOW` and `STEP` at the top of
+that file are the knobs. For a large number of concurrent listeners the right
+next step is a Durable Object per account, pushing over a WebSocket with no
+polling at all; that needs a DO binding on the Pages project.
+
+Note that system notifications only work while a tab is open. Alerting a device
+with the app closed would need Web Push (VAPID keys plus stored subscriptions),
+which is not set up.
 
 There is no email provider, so there is no verification code: signing up logs
 you straight in and `verify-otp.html` just forwards you on.
