@@ -57,6 +57,8 @@ cannot be forged from devtools the way the old localStorage gate could.
 | `POST /api/auth/logout` | Clear the session cookie |
 | `GET /api/auth/me` | Current user; every page calls this once via `authReady()` |
 | `POST /api/auth/profile` | Save display name, colour and bio |
+| `GET /api/me/devices` | Devices this account is signed in on |
+| `POST /api/me/devices` | `{id}` signs one device out, `{all:true}` signs out every other device |
 
 Bindings on the Pages project (production and preview):
 
@@ -68,6 +70,15 @@ To apply a schema change:
 ```sh
 npx wrangler d1 execute cloud-songs-auth --remote --file schema.sql
 ```
+
+Migrations are numbered files under `migrations/`, applied the same way:
+
+```sh
+npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0005_sessions.sql
+```
+
+`0005_sessions.sql` backs the Devices list. Until it is applied the list simply
+reports that device history isn't available yet; nothing else breaks.
 
 There is no email provider, so there is no verification code: signing up logs
 you straight in and `verify-otp.html` just forwards you on.

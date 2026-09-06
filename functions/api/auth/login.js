@@ -49,6 +49,6 @@ export async function onRequestPost({ request, env }) {
 
 	return reply(
 		{ ok: true, user: publicUser(user) },
-		{ cookie: await createSessionCookie(env, user.id) },
+		{ cookie: await createSessionCookie(env, user.id, request) },
 	);
 }

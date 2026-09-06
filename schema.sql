@@ -32,6 +32,25 @@ CREATE TABLE IF NOT EXISTS email_otps (
 	last_sent_at INTEGER NOT NULL DEFAULT 0
 );
 
+-- One row per sign-in, so an account can list the devices it is logged in on
+-- and end any of them. The session id also travels inside the signed cookie.
+CREATE TABLE IF NOT EXISTS sessions (
+	id            TEXT PRIMARY KEY,
+	user_id       TEXT NOT NULL,
+	created_at    INTEGER NOT NULL,
+	last_seen_at  INTEGER NOT NULL,
+	expires_at    INTEGER NOT NULL,
+	revoked_at    INTEGER NOT NULL DEFAULT 0,
+	device        TEXT,
+	os            TEXT,
+	browser       TEXT,
+	ip            TEXT,
+	location      TEXT,
+	user_agent    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions (user_id, last_seen_at);
+
 -- Throttles password guessing per email+IP. Rows are disposable.
 CREATE TABLE IF NOT EXISTS login_attempts (
 	key         TEXT PRIMARY KEY,

@@ -17,7 +17,7 @@ Live: https://abinash-songs.pages.dev
 | `functions/_lib/des.js` | DES-ECB decrypt for JioSaavn's `encrypted_media_url` (WebCrypto has no DES) |
 | `functions/api/auth/` | Signup, login, logout, session and profile endpoints |
 | `functions/_lib/auth.js` | PBKDF2 hashing, signed session cookies, login throttling |
-| `schema.sql` | D1 schema for `users` and `login_attempts` |
+| `schema.sql` | D1 schema for `users`, `sessions` and `login_attempts` |
 | `js/catalogue.js` | Per-language playlist catalogue used by the player |
 | `_routes.json`, `_headers`, `.assetsignore` | Pages routing, headers and upload rules |
 
@@ -48,3 +48,8 @@ from the server, wait for it before reading the state:
 ```js
 authReady().then(() => { if (!isLoggedIn()) location.href = "./login.html"; });
 ```
+
+Every sign-in also writes a row to `sessions`, so the account menu's **Devices**
+entry can show where the account is logged in (browser, OS, city, last active)
+and sign any of them out. Revoking a session invalidates its cookie on the next
+request; a password reset revokes them all.

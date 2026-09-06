@@ -85,14 +85,121 @@ async function hmac(secret, message) {
 	return crypto.subtle.sign("HMAC", key, enc.encode(message));
 }
 
-export async function createSessionCookie(env, userId) {
+export async function createSessionCookie(env, userId, request = null) {
+	const sid = randomHex(16);
+	const now = Math.floor(Date.now() / 1000);
+	const exp = now + SESSION_DAYS * 86400;
+
+	// Remember the sign-in so /api/me/devices can list it and end it later.
+	// A failure here (table not migrated yet, D1 hiccup) must not block a
+	// sign-in: the cookie still works, it just won't show up in the list.
+	if (request) {
+		try {
+			const d = describeClient(request);
+			await env.DB.prepare(
+				`INSERT INTO sessions
+				   (id, user_id, created_at, last_seen_at, expires_at, revoked_at,
+				    device, os, browser, ip, location, user_agent)
+				 VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+			).bind(sid, userId, now, now, exp, d.device, d.os, d.browser, d.ip, d.location, d.user_agent).run();
+		} catch (e) { /* non-fatal */ }
+	}
+
 	const payload = b64urlEncode(enc.encode(JSON.stringify({
 		uid: userId,
-		exp: Math.floor(Date.now() / 1000) + SESSION_DAYS * 86400,
+		sid,
+		exp,
 	})));
 	const sig = b64urlEncode(await hmac(sessionSecret(env), payload));
 	const value = `${payload}.${sig}`;
 	return `${COOKIE}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}`;
+}
+
+/* ---------- devices / active sessions ---------- */
+
+/** Best-effort description of the client behind a request, for the device list. */
+export function describeClient(request) {
+	const ua = request.headers.get("User-Agent") || "";
+	const cf = request.cf || {};
+	return {
+		device: deviceKind(ua),
+		os: osName(ua),
+		browser: browserName(ua),
+		ip: request.headers.get("CF-Connecting-IP") || "",
+		location: [cf.city, cf.region, cf.country].filter(Boolean).join(", "),
+		user_agent: ua.slice(0, 300),
+	};
+}
+
+function deviceKind(ua) {
+	if (/\bTablet\b|iPad/i.test(ua)) return "Tablet";
+	if (/Mobi|Android|iPhone|iPod|Windows Phone/i.test(ua)) return "Phone";
+	if (/SmartTV|AppleTV|Web0S|Tizen/i.test(ua)) return "TV";
+	return "Computer";
+}
+
+function osName(ua) {
+	if (/Windows NT 10/i.test(ua)) return "Windows";
+	if (/Windows/i.test(ua)) return "Windows";
+	if (/Android/i.test(ua)) return "Android";
+	if (/iPhone|iPad|iPod/i.test(ua)) return "iOS";
+	if (/Mac OS X/i.test(ua)) return "macOS";
+	if (/CrOS/i.test(ua)) return "ChromeOS";
+	if (/Linux/i.test(ua)) return "Linux";
+	return "Unknown OS";
+}
+
+function browserName(ua) {
+	// Order matters: most Chromium browsers also claim "Chrome"/"Safari".
+	if (/Edg\//i.test(ua)) return "Edge";
+	if (/OPR\/|Opera/i.test(ua)) return "Opera";
+	if (/SamsungBrowser/i.test(ua)) return "Samsung Internet";
+	if (/Firefox\//i.test(ua)) return "Firefox";
+	if (/Chrome\//i.test(ua)) return "Chrome";
+	if (/Safari\//i.test(ua)) return "Safari";
+	if (/wget|curl|python|node/i.test(ua)) return "Script";
+	return "Browser";
+}
+
+/** Active (non-revoked, unexpired) sessions for an account, newest activity first. */
+export async function listSessions(env, userId) {
+	const now = Math.floor(Date.now() / 1000);
+	const res = await env.DB.prepare(
+		`SELECT id, created_at, last_seen_at, device, os, browser, ip, location
+		   FROM sessions
+		  WHERE user_id = ? AND revoked_at = 0 AND expires_at > ?
+		  ORDER BY last_seen_at DESC
+		  LIMIT 50`,
+	).bind(userId, now).all();
+	return (res && res.results) || [];
+}
+
+/** Ends one session. Scoped by user_id so nobody can revoke someone else's. */
+export async function revokeSession(env, sessionId, userId) {
+	const now = Math.floor(Date.now() / 1000);
+	const res = await env.DB.prepare(
+		"UPDATE sessions SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at = 0",
+	).bind(now, sessionId, userId).run();
+	return !!(res && res.meta && res.meta.changes);
+}
+
+/** Ends every session except the one making the request. */
+export async function revokeOtherSessions(env, userId, keepSessionId) {
+	const now = Math.floor(Date.now() / 1000);
+	const res = await env.DB.prepare(
+		"UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at = 0 AND id <> ?",
+	).bind(now, userId, keepSessionId || "").run();
+	return (res && res.meta && res.meta.changes) || 0;
+}
+
+/** Housekeeping: drop rows that can never be shown again. */
+export async function pruneSessions(env, userId) {
+	const now = Math.floor(Date.now() / 1000);
+	try {
+		await env.DB.prepare(
+			"DELETE FROM sessions WHERE user_id = ? AND (expires_at < ? OR (revoked_at > 0 AND revoked_at < ?))",
+		).bind(userId, now, now - 7 * 86400).run();
+	} catch (e) { /* non-fatal */ }
 }
 
 export function clearSessionCookie() {
@@ -156,7 +263,8 @@ function readCookie(request, name) {
 	return null;
 }
 
-/** Returns the signed-in user row, or null. Never throws on a bad cookie. */
+/** Returns the signed-in user row, or null. Never throws on a bad cookie.
+ *  The row carries `session_id` (the cookie's session), used by the devices UI. */
 export async function currentUser(request, env) {
 	const raw = readCookie(request, COOKIE);
 	if (!raw || !raw.includes(".")) return null;
@@ -176,11 +284,37 @@ export async function currentUser(request, env) {
 	} catch (e) {
 		return null;
 	}
-	if (!claims || !claims.uid || !claims.exp || claims.exp < Math.floor(Date.now() / 1000)) return null;
+	const now = Math.floor(Date.now() / 1000);
+	if (!claims || !claims.uid || !claims.exp || claims.exp < now) return null;
 
-	return env.DB.prepare(
+	// Cookies issued before device tracking carry no sid; they stay valid, they
+	// just can't be listed or revoked until the next sign-in.
+	if (claims.sid) {
+		let session = null;
+		try {
+			session = await env.DB.prepare(
+				"SELECT revoked_at, expires_at, last_seen_at FROM sessions WHERE id = ? AND user_id = ?",
+			).bind(claims.sid, claims.uid).first();
+		} catch (e) {
+			session = null;                  // table missing: fall back to the cookie alone
+		}
+		if (session) {
+			if (session.revoked_at > 0 || session.expires_at < now) return null;
+			// Keep "last active" fresh without a write on every single request.
+			if (now - session.last_seen_at > 300) {
+				try {
+					await env.DB.prepare("UPDATE sessions SET last_seen_at = ? WHERE id = ?")
+						.bind(now, claims.sid).run();
+				} catch (e) { /* non-fatal */ }
+			}
+		}
+	}
+
+	const user = await env.DB.prepare(
 		"SELECT id, email, username, display_name, bio, avatar_color, avatar_url, pref_lang, profile_complete, created_at FROM users WHERE id = ?",
 	).bind(claims.uid).first();
+	if (user) user.session_id = claims.sid || "";
+	return user;
 }
 
 /* ---------- rate limiting ---------- */

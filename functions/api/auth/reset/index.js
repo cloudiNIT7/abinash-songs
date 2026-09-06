@@ -4,7 +4,7 @@
 import {
 	verifyResetToken, hashPassword, createSessionCookie, publicUser,
 	reply, badRequest, readJson, normaliseEmail, validateCredentials, randomHex,
-	PBKDF2_ITERATIONS,
+	revokeOtherSessions, PBKDF2_ITERATIONS,
 } from "../../../_lib/auth.js";
 
 export async function onRequestPost({ request, env }) {
@@ -36,9 +36,13 @@ export async function onRequestPost({ request, env }) {
 		 verified = 1, updated_at = ? WHERE id = ?`,
 	).bind(passwordHash, salt, PBKDF2_ITERATIONS, new Date().toISOString(), user.id).run();
 
+	// A password change ends every existing session: whoever was signed in on
+	// the old password (including an attacker) is logged out everywhere.
+	try { await revokeOtherSessions(env, user.id, ""); } catch (e) { /* non-fatal */ }
+
 	// Signed in on the new password.
 	return reply(
 		{ ok: true, user: publicUser({ ...user, verified: 1 }) },
-		{ cookie: await createSessionCookie(env, user.id) },
+		{ cookie: await createSessionCookie(env, user.id, request) },
 	);
 }

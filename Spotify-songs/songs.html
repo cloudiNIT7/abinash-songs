@@ -994,6 +994,62 @@
 			.profile-grid { padding:0 16px; gap:12px; grid-template-columns:repeat(2, 1fr); }
 		}
 
+		/* ---- Devices overlay: where this account is signed in ---- */
+		.dev-body { padding:0 0 70px; max-width:720px; margin:0 auto; width:100%; }
+		.dev-head { padding:56px 26px 6px; }
+		.dev-head h2 { color:#fff; font-size:clamp(24px,5vw,34px); font-weight:800; margin:0 0 8px; letter-spacing:-.5px; }
+		.dev-head p { color:#9b9b9b; font-size:14px; margin:0; line-height:1.5; }
+		.dev-list { display:flex; flex-direction:column; gap:12px; padding:22px 26px 0; }
+		.dev-row {
+			display:flex; align-items:center; gap:14px; padding:16px;
+			background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.10);
+			border-radius:14px; transition:background .16s, border-color .16s;
+		}
+		.dev-row:hover { background:rgba(255,255,255,.07); }
+		.dev-row.is-current { border-color:rgba(29,185,84,.5); background:rgba(29,185,84,.07); }
+		.dev-ic {
+			width:46px; height:46px; flex:none; border-radius:12px; background:rgba(255,255,255,.10);
+			display:flex; align-items:center; justify-content:center; color:#fff;
+		}
+		.dev-row.is-current .dev-ic { background:rgba(29,185,84,.22); color:var(--sp-green-h); }
+		.dev-ic svg { width:24px; height:24px; }
+		.dev-meta { flex:1 1 auto; min-width:0; }
+		.dev-name { color:#fff; font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+		.dev-badge {
+			font-size:10px; font-weight:800; letter-spacing:.6px; text-transform:uppercase;
+			color:#06240f; background:var(--sp-green-h); border-radius:999px; padding:3px 8px;
+		}
+		.dev-sub { color:#9b9b9b; font-size:12.5px; margin-top:3px; line-height:1.45; word-break:break-word; }
+		.dev-revoke {
+			flex:none; background:transparent; color:#b3b3b3; border:1px solid rgba(255,255,255,.22);
+			border-radius:999px; padding:8px 16px; font-size:12.5px; font-weight:700; font-family:inherit;
+			cursor:pointer; transition:color .16s, border-color .16s, background .16s;
+		}
+		.dev-revoke:hover { color:#ff8b96; border-color:rgba(241,94,108,.55); background:rgba(241,94,108,.10); }
+		.dev-revoke:focus-visible { outline:3px solid #fff; outline-offset:2px; }
+		.dev-revoke:disabled { opacity:.5; cursor:default; }
+		.dev-actions { padding:22px 26px 0; }
+		.dev-all {
+			background:transparent; color:#fff; border:1px solid rgba(255,255,255,.28);
+			border-radius:999px; padding:11px 22px; font-size:13.5px; font-weight:700; font-family:inherit;
+			cursor:pointer; transition:background .16s, border-color .16s, transform .16s;
+		}
+		.dev-all:hover { background:rgba(241,94,108,.12); border-color:rgba(241,94,108,.55); transform:translateY(-1px); }
+		.dev-all:focus-visible { outline:3px solid #fff; outline-offset:2px; }
+		.dev-all[hidden] { display:none; }
+		.dev-note { color:#6f6f6f; font-size:12px; padding:14px 26px 0; line-height:1.5; }
+		.dev-empty { color:#9b9b9b; font-size:14px; padding:6px 2px; }
+		@media (max-width:768px){
+			.dev-head { padding:48px 16px 4px; }
+			.dev-list, .dev-actions { padding-left:16px; padding-right:16px; }
+			.dev-note { padding-left:16px; padding-right:16px; }
+			.dev-row { flex-wrap:wrap; }
+			.dev-revoke { margin-left:60px; }
+		}
+		@media (prefers-reduced-motion: reduce){
+			.dev-row, .dev-revoke, .dev-all { transition:none; }
+		}
+
 		/* Add-to-playlist bottom sheet */
 		.add-sheet {
 			position:fixed; inset:0; z-index:2400; background:rgba(0,0,0,.6);
@@ -1806,6 +1862,7 @@
 					<li role="separator" class="divider"></li>
 					<li><a href="#" id="openProfileLink"><svg class="cs-mi" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 4h6v16H4V4zm8 0h3v16h-3V4zm5 0h3v16h-3V4z"/></svg><span>Your Library</span></a></li>
 					<li><a href="#" id="editProfileLink"><svg class="cs-mi" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg><span>Edit profile</span></a></li>
+					<li><a href="#" id="devicesLink"><svg class="cs-mi" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 5h16a1 1 0 0 1 1 1v7h-2V7H5v9h6v2H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm11 5h5a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zm1 2v7h3v-7h-3z"/></svg><span>Devices</span></a></li>
 					<li><a href="#" id="appLogoutLink" class="cs-mi--danger"><svg class="cs-mi" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 17l1.41-1.41L8.83 13H16v-2H8.83l2.58-2.59L10 7l-5 5 5 5zm9-14H5a2 2 0 0 0-2 2v4h2V5h14v14H5v-4H3v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg><span>Log Out</span></a></li>
 				</ul>
 			</div>
@@ -4147,6 +4204,150 @@
 			});
 		}
 
+		/* ---- Devices: where this account is signed in ----------------------
+		 * Each sign-in is a row in the D1 `sessions` table, keyed by the id
+		 * inside the session cookie, so the list is server truth and any device
+		 * can be signed out from here. */
+		var DEV_ICONS = {
+			Phone: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 1h10a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2zm0 4v13h10V5H7zm5 15.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>',
+			Tablet: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 2h14a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm0 4v12h14V6H5zm7 14.2a.9.9 0 1 0 0-1.8.9.9 0 0 0 0 1.8z"/></svg>',
+			TV: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm1 2v9h16V6H4zM8 19h8v2H8v-2z"/></svg>',
+			Computer: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-7v2h4v2H6v-2h4v-2H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm1 2v8h16V6H4z"/></svg>',
+		};
+
+		// "just now" / "14 minutes ago" / "3 days ago" from unix seconds.
+		function devWhen(seconds) {
+			if (!seconds) return "";
+			var diff = Math.floor(Date.now() / 1000) - seconds;
+			if (diff < 60) return "active just now";
+			var units = [
+				[31536000, "year"], [2592000, "month"], [604800, "week"],
+				[86400, "day"], [3600, "hour"], [60, "minute"],
+			];
+			for (var i = 0; i < units.length; i++) {
+				var n = Math.floor(diff / units[i][0]);
+				if (n >= 1) return "active " + n + " " + units[i][1] + (n > 1 ? "s" : "") + " ago";
+			}
+			return "";
+		}
+
+		function devRow(d) {
+			var row = document.createElement("div");
+			row.className = "dev-row" + (d.current ? " is-current" : "");
+
+			var ic = document.createElement("span");
+			ic.className = "dev-ic";
+			ic.innerHTML = DEV_ICONS[d.device] || DEV_ICONS.Computer;   // fixed, local markup
+			row.appendChild(ic);
+
+			var meta = document.createElement("div");
+			meta.className = "dev-meta";
+
+			var name = document.createElement("div");
+			name.className = "dev-name";
+			var label = document.createElement("span");
+			label.textContent = [d.browser, "on", d.os].filter(Boolean).join(" ") || d.device;
+			name.appendChild(label);
+			if (d.current) {
+				var badge = document.createElement("span");
+				badge.className = "dev-badge";
+				badge.textContent = "This device";
+				name.appendChild(badge);
+			}
+			meta.appendChild(name);
+
+			var sub = document.createElement("div");
+			sub.className = "dev-sub";
+			// textContent, never innerHTML: these strings come from a User-Agent.
+			sub.textContent = [d.device, d.location, d.ip, devWhen(d.last_seen_at)]
+				.filter(Boolean).join(" \u00b7 ");
+			meta.appendChild(sub);
+			row.appendChild(meta);
+
+			if (!d.current) {
+				var btn = document.createElement("button");
+				btn.type = "button";
+				btn.className = "dev-revoke";
+				btn.textContent = "Sign out";
+				btn.addEventListener("click", function () {
+					confirmModal(
+						"This device will be signed out and asked to log in again.",
+						"Sign out", "Sign out this device?",
+					).then(function (yes) {
+						if (!yes) return;
+						btn.disabled = true;
+						btn.textContent = "Signing out\u2026";
+						apiPost("/api/me/devices", { id: d.id }).then(function (res) {
+							if (res && res.ok) {
+								if (window.notify) window.notify("Device signed out", "success");
+								renderDevices();
+							} else {
+								btn.disabled = false;
+								btn.textContent = "Sign out";
+								if (window.notify) window.notify((res && res.error) || "Couldn't sign that device out", "error");
+							}
+						});
+					});
+				});
+				row.appendChild(btn);
+			}
+			return row;
+		}
+
+		function renderDevices() {
+			var list = $id("devicesList");
+			var allBtn = $id("devicesRevokeAll");
+			if (!list) return;
+			list.innerHTML = "";
+			var loading = document.createElement("div");
+			loading.className = "dev-empty";
+			loading.textContent = "Loading your devices\u2026";
+			list.appendChild(loading);
+			if (allBtn) allBtn.hidden = true;
+
+			apiGet("/api/me/devices").then(function (d) {
+				list.innerHTML = "";
+				if (!d || !d.ok) {
+					var err = document.createElement("div");
+					err.className = "dev-empty";
+					err.textContent = "Couldn't load your devices. Check your connection and try again.";
+					list.appendChild(err);
+					return;
+				}
+				var devices = d.devices || [];
+				if (!devices.length) {
+					var empty = document.createElement("div");
+					empty.className = "dev-empty";
+					empty.textContent = d.unavailable
+						? "Device history isn't available on this account yet. Log out and back in to start tracking sign-ins."
+						: "No other sign-ins recorded. Log in again to see this device listed.";
+					list.appendChild(empty);
+					return;
+				}
+				devices.forEach(function (device) { list.appendChild(devRow(device)); });
+				if (allBtn) allBtn.hidden = devices.filter(function (x) { return !x.current; }).length === 0;
+			});
+		}
+
+		function openDevices() {
+			var o = $id("devicesOverlay");
+			if (!o) return;
+			renderDevices();
+			o.classList.add("is-open");
+			o.setAttribute("aria-hidden", "false");
+			if (window.CSNav && !window.CSNav.has("devices")) window.CSNav.push("devices", hideDevices);
+		}
+		function hideDevices() {
+			var o = $id("devicesOverlay");
+			if (o) { o.classList.remove("is-open"); o.setAttribute("aria-hidden", "true"); }
+		}
+		function closeDevices() {
+			var o = $id("devicesOverlay");
+			if (!o || !o.classList.contains("is-open")) return;
+			if (window.CSNav && window.CSNav.has("devices")) window.CSNav.back("devices");
+			else hideDevices();
+		}
+
 		function openProfile() {
 			var profileOverlay = $id("profileOverlay");
 			if (!profileOverlay) return;
@@ -4469,6 +4670,39 @@
 				openProfile();
 				pfSetOpen(true);
 			});
+			// "Devices" in the account menu lists the account's active sessions.
+			var devicesLink = $id("devicesLink");
+			if (devicesLink) devicesLink.addEventListener("click", function (e) {
+				e.preventDefault();
+				openDevices();
+			});
+			var devicesCloseBtn = $id("devicesClose");
+			if (devicesCloseBtn) devicesCloseBtn.addEventListener("click", closeDevices);
+			var devicesAllBtn = $id("devicesRevokeAll");
+			if (devicesAllBtn) devicesAllBtn.addEventListener("click", function () {
+				confirmModal(
+					"Every other device signed in to this account will be logged out. This device stays signed in.",
+					"Sign out all", "Sign out all other devices?",
+				).then(function (yes) {
+					if (!yes) return;
+					devicesAllBtn.disabled = true;
+					apiPost("/api/me/devices", { all: true }).then(function (res) {
+						devicesAllBtn.disabled = false;
+						if (res && res.ok) {
+							if (window.notify) {
+								window.notify(
+									res.ended ? "Signed out " + res.ended + " other device(s)" : "No other devices were signed in",
+									"success",
+								);
+							}
+							renderDevices();
+						} else if (window.notify) {
+							window.notify((res && res.error) || "Couldn't sign the other devices out", "error");
+						}
+					});
+				});
+			});
+
 			var openLikedBtn = $id("openLikedBtn");
 			if (openLikedBtn) openLikedBtn.addEventListener("click", openLiked);
 			var newPlaylistBtn = $id("newPlaylistBtn");
@@ -4884,6 +5118,25 @@
       <button class="profile-new-btn" id="newPlaylistBtn">+ New playlist</button>
     </div>
     <div class="profile-grid" id="profilePlaylists"></div>
+  </div>
+</div>
+
+<!-- ===================================================================
+     Devices overlay: every device this account is signed in on, with the
+     ability to sign any of them out. Data comes from /api/me/devices.
+     =================================================================== -->
+<div id="devicesOverlay" class="albums-overlay profile-overlay" aria-hidden="true">
+  <button id="devicesClose" class="profile-x" aria-label="Close">&times;</button>
+  <div class="dev-body">
+    <div class="dev-head">
+      <h2>Devices</h2>
+      <p>Where your account is signed in right now. If you see something you don&rsquo;t recognise, sign it out and change your password.</p>
+    </div>
+    <div class="dev-list" id="devicesList" aria-live="polite"></div>
+    <div class="dev-actions">
+      <button type="button" class="dev-all" id="devicesRevokeAll" hidden>Sign out all other devices</button>
+    </div>
+    <p class="dev-note">Signing a device out ends its session immediately; it will be asked to log in again. Sessions expire on their own after 30 days.</p>
   </div>
 </div>
 
