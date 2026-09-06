@@ -340,6 +340,115 @@ export async function currentUser(request, env, waitUntil) {
 	return row;
 }
 
+/* ---------- login approvals ----------
+ * Once an account is signed in somewhere, a new sign-in with the right password
+ * still has to be approved from one of those devices. The waiting device holds
+ * the approval id and exchanges it for a session once it is approved.
+ *
+ * Only sessions seen recently count as approvers: an account whose devices have
+ * all gone quiet can still sign in normally, so nobody is locked out by a row
+ * that outlived the browser that created it.
+ */
+const APPROVAL_TTL = 300;              // seconds a request waits for an answer
+const APPROVER_WINDOW = 7 * 86400;     // how recently a session must have been used
+
+/** How many live devices could answer an approval request for this account. */
+export async function countApprovers(env, userId) {
+	const now = Math.floor(Date.now() / 1000);
+	const row = await env.DB.prepare(
+		`SELECT COUNT(*) AS n FROM sessions
+		  WHERE user_id = ? AND revoked_at = 0 AND expires_at > ? AND last_seen_at > ?`,
+	).bind(userId, now, now - APPROVER_WINDOW).first();
+	return (row && row.n) || 0;
+}
+
+/** Park a verified sign-in until an existing device answers it. */
+export async function createApproval(env, userId, request) {
+	const id = randomHex(16);
+	const now = Math.floor(Date.now() / 1000);
+	const d = describeClient(request);
+	await env.DB.prepare(
+		`INSERT INTO login_approvals
+		   (id, user_id, status, created_at, expires_at, device, os, browser, ip, location, user_agent)
+		 VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)`,
+	).bind(id, userId, now, now + APPROVAL_TTL, d.device, d.os, d.browser, d.ip, d.location, d.user_agent).run();
+	return { id, expiresIn: APPROVAL_TTL, client: d };
+}
+
+/** Status for the waiting device. Returns null for an unknown id. */
+export async function getApproval(env, id) {
+	const row = await env.DB.prepare(
+		`SELECT id, user_id, status, created_at, expires_at, user_agent FROM login_approvals WHERE id = ?`,
+	).bind(id).first();
+	if (!row) return null;
+	if (row.status === "pending" && row.expires_at < Math.floor(Date.now() / 1000)) {
+		return { ...row, status: "expired" };
+	}
+	return row;
+}
+
+/** Pending requests this account should be asked about. */
+export async function listPendingApprovals(env, userId) {
+	const now = Math.floor(Date.now() / 1000);
+	const res = await env.DB.prepare(
+		`SELECT id, device, os, browser, ip, location, created_at, expires_at
+		   FROM login_approvals
+		  WHERE user_id = ? AND status = 'pending' AND expires_at > ?
+		  ORDER BY created_at DESC
+		  LIMIT 5`,
+	).bind(userId, now).all();
+	return (res && res.results) || [];
+}
+
+/**
+ * Answer a request. Scoped by user_id so one account can never answer another's,
+ * and only while it is still pending, so a decision cannot be flipped.
+ */
+export async function decideApproval(env, id, userId, approve, sessionId) {
+	const now = Math.floor(Date.now() / 1000);
+	const res = await env.DB.prepare(
+		`UPDATE login_approvals
+		    SET status = ?, decided_at = ?, decided_by = ?
+		  WHERE id = ? AND user_id = ? AND status = 'pending' AND expires_at > ?`,
+	).bind(approve ? "approved" : "denied", now, sessionId || "", id, userId, now).run();
+	return !!(res && res.meta && res.meta.changes);
+}
+
+/**
+ * Exchange an approved request for a session. Single use, and bound to the
+ * browser that asked: a leaked id is useless from anywhere else.
+ */
+export async function claimApproval(env, id, request) {
+	const now = Math.floor(Date.now() / 1000);
+	const row = await getApproval(env, id);
+	if (!row || row.status !== "approved" || row.expires_at < now) return null;
+
+	const ua = (request.headers.get("User-Agent") || "").slice(0, 300);
+	if ((row.user_agent || "") !== ua) return null;
+
+	const claimed = await env.DB.prepare(
+		"UPDATE login_approvals SET status = 'claimed' WHERE id = ? AND status = 'approved'",
+	).bind(id).run();
+	if (!claimed || !claimed.meta || !claimed.meta.changes) return null;   // already claimed
+
+	return env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(row.user_id).first();
+}
+
+/** Housekeeping. Answered rows are kept for a while: the waiting device still
+ *  has to be able to read its answer, and deleting it immediately would look
+ *  the same as expiring. */
+export async function pruneApprovals(env, userId) {
+	const now = Math.floor(Date.now() / 1000);
+	try {
+		await env.DB.prepare(
+			`DELETE FROM login_approvals
+			  WHERE user_id = ?
+			    AND (expires_at < ?
+			         OR (status IN ('claimed', 'denied') AND decided_at > 0 AND decided_at < ?))`,
+		).bind(userId, now - 3600, now - 900).run();
+	} catch (e) { /* non-fatal */ }
+}
+
 /* ---------- rate limiting ---------- */
 
 export async function checkThrottle(env, key) {

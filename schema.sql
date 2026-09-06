@@ -51,6 +51,28 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions (user_id, last_seen_at);
 
+-- A new sign-in waits here until a device that is already signed in approves or
+-- denies it. Single use: approved -> claimed when the waiting device collects
+-- its session.
+CREATE TABLE IF NOT EXISTS login_approvals (
+	id            TEXT PRIMARY KEY,
+	user_id       TEXT NOT NULL,
+	status        TEXT NOT NULL DEFAULT 'pending',
+	created_at    INTEGER NOT NULL,
+	expires_at    INTEGER NOT NULL,
+	decided_at    INTEGER NOT NULL DEFAULT 0,
+	decided_by    TEXT,
+	device        TEXT,
+	os            TEXT,
+	browser       TEXT,
+	ip            TEXT,
+	location      TEXT,
+	user_agent    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS login_approvals_user_idx
+	ON login_approvals (user_id, status, expires_at);
+
 -- Throttles password guessing per email+IP. Rows are disposable.
 CREATE TABLE IF NOT EXISTS login_attempts (
 	key         TEXT PRIMARY KEY,

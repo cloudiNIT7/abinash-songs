@@ -2,6 +2,7 @@
 import {
 	verifyPassword, createSessionCookie, publicUser, reply, badRequest, readJson,
 	normaliseEmail, checkThrottle, recordFailure, clearFailures, clientKey, issueOtp,
+	countApprovers, createApproval,
 } from "../../_lib/auth.js";
 
 export async function onRequestPost({ request, env }) {
@@ -45,6 +46,25 @@ export async function onRequestPost({ request, env }) {
 			await issueOtp(env, email, "login");
 		} catch (e) { /* still route to verify; they can hit "resend" */ }
 		return reply({ ok: false, requiresOtp: true, email }, { status: 200 });
+	}
+
+	// The account is already signed in somewhere: that device decides whether
+	// this one gets in. The password alone is no longer enough.
+	try {
+		if (await countApprovers(env, user.id) > 0) {
+			const approval = await createApproval(env, user.id, request);
+			return reply({
+				ok: false,
+				requiresApproval: true,
+				approvalId: approval.id,
+				expiresIn: approval.expiresIn,
+				email,
+				device: [approval.client.browser, "on", approval.client.os].filter(Boolean).join(" "),
+			}, { status: 200 });
+		}
+	} catch (e) {
+		// Approvals not migrated yet, or D1 unavailable: sign in as before
+		// rather than locking the account out of its own login.
 	}
 
 	return reply(

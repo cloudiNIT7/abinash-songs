@@ -18,7 +18,7 @@ Live: https://abinash-songs.pages.dev
 | `functions/_lib/des.js` | DES-ECB decrypt for JioSaavn's `encrypted_media_url` (WebCrypto has no DES) |
 | `functions/api/auth/` | Signup, login, logout, session and profile endpoints |
 | `functions/_lib/auth.js` | PBKDF2 hashing, signed session cookies, login throttling |
-| `schema.sql` | D1 schema for `users`, `sessions` and `login_attempts` |
+| `schema.sql` | D1 schema for `users`, `sessions`, `login_approvals` and `login_attempts` |
 | `js/catalogue.js` | Per-language playlist catalogue used by the player |
 | `_routes.json`, `_headers`, `.assetsignore` | Pages routing, headers and upload rules |
 
@@ -56,3 +56,9 @@ and sign any of them out. A signed-out device stops being able to call the API
 at once, and the page it left open notices within about 20 seconds - or as soon
 as the tab is focused - and returns to the login screen. A password reset ends
 every session the same way.
+
+While an account has a recently-used session, a new sign-in with the right
+password is parked in `login_approvals` until one of those devices approves it -
+raised there as a pop-up and as an Approve/Deny notification. Denying keeps the
+new device out; nothing answers within 5 minutes and it expires. An emailed code
+is offered as a fallback for when no device is reachable.

@@ -60,6 +60,10 @@ cannot be forged from devtools the way the old localStorage gate could.
 | `POST /api/auth/profile` | Save display name, colour and bio |
 | `GET /api/me/devices` | Devices this account is signed in on |
 | `POST /api/me/devices` | `{id}` signs one device out, `{all:true}` signs out every other device |
+| `GET /api/auth/approval?id=` | Waiting device: has this sign-in been approved yet? |
+| `POST /api/auth/approval` | Waiting device: `{id}` exchanges an approved request for a session |
+| `GET /api/me/approvals` | Sign-ins waiting for this device to answer |
+| `POST /api/me/approvals` | `{id, action}` approves or denies one |
 
 Bindings on the Pages project (production and preview):
 
@@ -76,10 +80,31 @@ Migrations are numbered files under `migrations/`, applied the same way:
 
 ```sh
 npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0005_sessions.sql
+npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0006_login_approvals.sql
 ```
 
-`0005_sessions.sql` backs the Devices list. Until it is applied the list simply
-reports that device history isn't available yet; nothing else breaks.
+`0005_sessions.sql` backs the Devices list, `0006_login_approvals.sql` the
+sign-in approvals. Until each is applied the matching feature simply stays out of
+the way: the device list reports that history isn't available, and a correct
+password signs in directly as before.
+
+## Sign-in approvals
+
+Once an account has a session that has been used in the last 7 days, a new
+sign-in with the right password does not get in on its own: it is parked, and one
+of those devices has to approve it.
+
+- `POST /api/auth/login` returns `{requiresApproval, approvalId, expiresIn}` and
+  no cookie. The login page waits on that id and offers "Email me a code instead"
+  as a fallback.
+- The signed-in device learns about it through its existing session poll
+  (`/api/auth/me?approvals=1`) and raises it twice: a pop-up, and an entry with
+  Approve/Deny in the notification centre, so dismissing the pop-up loses nothing.
+- Approving lets the waiting device claim a session, once, and only from the same
+  browser it asked from (the request records its User-Agent). Denying keeps it out
+  and tells it so. Unanswered requests expire after 5 minutes.
+- If every session has gone quiet for more than 7 days, sign-in proceeds without
+  approval - otherwise an abandoned session row would lock the owner out.
 
 There is no email provider, so there is no verification code: signing up logs
 you straight in and `verify-otp.html` just forwards you on.

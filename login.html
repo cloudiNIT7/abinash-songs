@@ -3,11 +3,11 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no, viewport-fit=cover" />
-		<link rel="stylesheet" href="./css/main.css?v=20260904c" />
-		<link rel="stylesheet" href="./css/fonts.css?v=20260904c" />
-		<link rel="stylesheet" href="./css/responsive.css?v=20260904c" />
+		<link rel="stylesheet" href="./css/main.css?v=20260906d" />
+		<link rel="stylesheet" href="./css/fonts.css?v=20260906d" />
+		<link rel="stylesheet" href="./css/responsive.css?v=20260906d" />
 		<title>Login - Cloud Songs</title>
-		<link rel="icon" href="./assets/favicon.png?v=20260904c" />
+		<link rel="icon" href="./assets/favicon.png?v=20260906d" />
 		<link
 			href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap"
 			rel="stylesheet"
@@ -115,6 +115,26 @@
 				margin: 0 0 16px;
 			}
 			.login_notice[hidden] { display: none; }
+			/* Waiting for another device to approve this sign-in. */
+			.login_wait[hidden] { display: none; }
+			.login_wait { text-align: center; }
+			.login_wait h2 { font-size: 22px; margin: 14px 0 8px; }
+			.login_wait p { color: #b3b3b3; font-size: 14px; line-height: 1.55; margin: 0 0 10px; }
+			.login_wait__device { color: #fff !important; font-weight: 700; }
+			.login_wait__timer { color: #8a8a8a !important; font-size: 13px !important; font-variant-numeric: tabular-nums; }
+			.login_wait__spin {
+				width: 46px; height: 46px; margin: 4px auto 0;
+				border: 3px solid rgba(255, 255, 255, .18);
+				border-top-color: #1DB954; border-radius: 50%;
+				animation: loginSpin 1s linear infinite;
+			}
+			@keyframes loginSpin { to { transform: rotate(360deg); } }
+			@media (prefers-reduced-motion: reduce) { .login_wait__spin { animation-duration: 3s; } }
+			.login_wait__ghost {
+				width: 100%; margin-top: 10px; background: none; border: none;
+				color: #b3b3b3; font-size: 13px; font-family: inherit; cursor: pointer; text-decoration: underline;
+			}
+			.login_wait__ghost:hover { color: #fff; }
 			.login_submit {
 				width: 100%;
 				border: none;
@@ -168,7 +188,7 @@
 			<div class="login_card">
 				<div class="login_logo">
 					<a href="./index.html">
-						<span class="app-brand"><img class="app-brand__icon" src="./assets/logo.png?v=20260904c" alt="" /><span class="app-brand__text">Cloud Songs</span></span>
+						<span class="app-brand"><img class="app-brand__icon" src="./assets/logo.png?v=20260906d" alt="" /><span class="app-brand__text">Cloud Songs</span></span>
 					</a>
 				</div>
 
@@ -201,11 +221,29 @@
 				<p class="login_forgot" id="forgotWrap">
 					<a href="./reset-password.html" id="forgotLink">Forgot your password?</a>
 				</p>
+
+				<!-- Shown instead of the form while a device that is already
+				     signed in decides whether to let this one in. -->
+				<div class="login_wait" id="loginWait" hidden>
+					<div class="login_wait__spin"></div>
+					<h2>Approve this sign-in</h2>
+					<p>
+						This account is already signed in on another device. Open Cloud Songs
+						there &mdash; it has a request waiting, as a pop-up and in its
+						notifications.
+					</p>
+					<p class="login_wait__device" id="waitDevice"></p>
+					<p class="login_wait__timer" id="waitTimer"></p>
+					<div class="login_error" id="waitError"></div>
+					<button type="button" class="login_submit" id="waitCode">Email me a code instead</button>
+					<button type="button" class="login_wait__ghost" id="waitCancel">Cancel</button>
+				</div>
+
 				<a href="./index.html" class="login_back">&larr; Back to home</a>
 			</div>
 		</div>
 
-		<script src="./js/auth.js?v=20260904c"></script>
+		<script src="./js/auth.js?v=20260906d"></script>
 		<script>
 			const tabLogin = document.getElementById("tabLogin");
 			const tabSignup = document.getElementById("tabSignup");
@@ -297,6 +335,12 @@
 					return;
 				}
 
+				// Already signed in elsewhere: wait for that device to answer.
+				if (result.requiresApproval) {
+					startApprovalWait(result, email);
+					return;
+				}
+
 				if (!result.ok) {
 					authError.textContent = result.message;
 					// No account for this email: guide them to Sign Up, keeping
@@ -319,6 +363,103 @@
 					window.location.replace("./Spotify-songs/songs.html");
 				}
 			});
+
+			/* ---- waiting on another device to approve this sign-in ----------
+			 * The password was right, but the account is already signed in
+			 * somewhere, so that device decides. We poll for its answer and, if
+			 * it says yes, exchange the approval for a session here. */
+			const loginWait = document.getElementById("loginWait");
+			const waitDevice = document.getElementById("waitDevice");
+			const waitTimer = document.getElementById("waitTimer");
+			const waitError = document.getElementById("waitError");
+			const waitCode = document.getElementById("waitCode");
+			const waitCancel = document.getElementById("waitCancel");
+			const tabsWrap = document.querySelector(".login_tabs");
+			const forgotWrap = document.getElementById("forgotWrap");
+
+			let waitPoll = null;
+			let waitTick = null;
+			let waitEmail = "";
+
+			function showWaitScreen(on) {
+				loginWait.hidden = !on;
+				authForm.hidden = on;
+				if (tabsWrap) tabsWrap.hidden = on;
+				if (forgotWrap) forgotWrap.hidden = on;
+				formTitle.hidden = on;
+				authNotice.hidden = on || !authNotice.textContent;
+			}
+
+			function stopWaiting() {
+				if (waitPoll) { clearInterval(waitPoll); waitPoll = null; }
+				if (waitTick) { clearInterval(waitTick); waitTick = null; }
+			}
+
+			function backToForm(message) {
+				stopWaiting();
+				showWaitScreen(false);
+				waitError.textContent = "";
+				authError.textContent = message || "";
+				document.getElementById("password").value = "";
+			}
+
+			function startApprovalWait(result, email) {
+				waitEmail = result.email || email;
+				waitError.textContent = "";
+				waitDevice.textContent = result.device ? "Request sent for " + result.device : "";
+				showWaitScreen(true);
+
+				let left = result.expiresIn || 300;
+				const renderTimer = () => {
+					const m = Math.floor(left / 60), s = left % 60;
+					waitTimer.textContent = left > 0
+						? "Waiting for approval \u2014 expires in " + m + ":" + (s < 10 ? "0" : "") + s
+						: "This request has expired.";
+				};
+				renderTimer();
+				waitTick = setInterval(() => { left = Math.max(0, left - 1); renderTimer(); }, 1000);
+
+				waitPoll = setInterval(async () => {
+					const status = await checkLoginApproval(result.approvalId);
+					if (!status.ok) return;                     // transient: keep waiting
+
+					if (status.status === "approved") {
+						stopWaiting();
+						waitTimer.textContent = "Approved. Signing you in\u2026";
+						const claim = await claimLoginApproval(result.approvalId);
+						if (!claim.ok) { backToForm(claim.message || "Couldn't complete that sign-in."); return; }
+						window.location.replace(claim.user && claim.user.profile_completed
+							? "./Spotify-songs/songs.html" : "./profile.html");
+						return;
+					}
+					if (status.status === "denied") {
+						stopWaiting();
+						waitTimer.textContent = "";
+						waitError.textContent = "That device denied this sign-in. If it wasn't you, change your password.";
+						return;
+					}
+					if (status.status === "expired" || status.status === "unknown") {
+						stopWaiting();
+						waitTimer.textContent = "";
+						waitError.textContent = "The request expired without an answer. Try again, or use an email code.";
+					}
+				}, 2500);
+			}
+
+			// Escape hatch: no device answered (or none is reachable), so fall
+			// back to proving the email instead.
+			waitCode.addEventListener("click", async () => {
+				waitCode.disabled = true;
+				waitCode.textContent = "Sending\u2026";
+				const sent = await resendOtp(waitEmail, "login");
+				waitCode.disabled = false;
+				waitCode.textContent = "Email me a code instead";
+				if (!sent.ok) { waitError.textContent = sent.message || "Couldn't send that code."; return; }
+				stopWaiting();
+				window.location.replace("./verify-otp.html?email=" + encodeURIComponent(waitEmail));
+			});
+
+			waitCancel.addEventListener("click", () => backToForm(""));
 		</script>
 	</body>
 </html>

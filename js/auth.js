@@ -90,7 +90,38 @@ async function logIn(email, password) {
 	});
 	// Unverified accounts come back with requiresOtp and a fresh emailed code.
 	if (res.requiresOtp) return { ok: false, requiresOtp: true, email: res.email || email };
+	// The account is signed in elsewhere: that device has to approve this one.
+	if (res.requiresApproval) {
+		return {
+			ok: false,
+			requiresApproval: true,
+			approvalId: res.approvalId,
+			expiresIn: res.expiresIn || 300,
+			device: res.device || "",
+			email: res.email || email,
+		};
+	}
 	if (!res.ok) return { ok: false, status: res.status, noAccount: !!res.noAccount, message: res.message };
+	_user = _shape(res.user);
+	_readyPromise = Promise.resolve(_user);
+	return { ok: true, user: _user };
+}
+
+/* ---------- login approval (waiting device) ----------
+ * After a password is accepted on a new device, the sign-in waits here until a
+ * device that is already signed in approves or denies it. */
+
+/** Poll for an answer. Status: pending | approved | denied | expired | unknown. */
+async function checkLoginApproval(approvalId) {
+	const res = await _request("/approval?id=" + encodeURIComponent(approvalId));
+	if (!res.ok) return { ok: false, message: res.message };
+	return { ok: true, status: res.status, expiresIn: res.expiresIn || 0 };
+}
+
+/** Once approved, exchange the approval for a session on this device. */
+async function claimLoginApproval(approvalId) {
+	const res = await _request("/approval", { method: "POST", body: { id: approvalId } });
+	if (!res.ok) return { ok: false, message: res.message };
 	_user = _shape(res.user);
 	_readyPromise = Promise.resolve(_user);
 	return { ok: true, user: _user };
@@ -107,8 +138,8 @@ async function verifyOtp(email, code) {
 	return { ok: true, user: _user };
 }
 
-async function resendOtp(email) {
-	const res = await _request("/resend", { method: "POST", body: { email: email } });
+async function resendOtp(email, purpose) {
+	const res = await _request("/resend", { method: "POST", body: { email: email, purpose: purpose || "signup" } });
 	if (!res.ok) return { ok: false, message: res.message };
 	return { ok: true, message: "A new code is on its way." };
 }
