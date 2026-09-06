@@ -3,7 +3,12 @@
 import { currentUser, reply } from "../../_lib/auth.js";
 
 export async function onRequest(context) {
-	const user = await currentUser(context.request, context.env);
+	// waitUntil keeps the session's "last active" write off the response path.
+	const user = await currentUser(
+		context.request,
+		context.env,
+		context.waitUntil && context.waitUntil.bind(context),
+	);
 	if (!user) {
 		return reply({ ok: false, error: "Not signed in." }, { status: 401 });
 	}

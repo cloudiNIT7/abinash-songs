@@ -84,6 +84,54 @@ reports that device history isn't available yet; nothing else breaks.
 There is no email provider, so there is no verification code: signing up logs
 you straight in and `verify-otp.html` just forwards you on.
 
+## High traffic
+
+The API is read-heavy and the same handful of searches, playlists and artists
+account for most of it, so the work is done once per colo instead of once per
+request.
+
+`functions/_lib/cache.js` wraps every read endpoint (`/song/`, `/playlist/`,
+`/album/`, `/artist/`, `/lyrics/`, `/browse/`, `/result/`) and stores the
+finished JSON in `caches.default`. Pages Functions responses are not cached by
+Cloudflare on their own, so without this every hit costs a Function invocation
+plus the decrypt/format work.
+
+- Freshness comes from each response's own `Cache-Control`, set through
+  `json({ maxAge, swr })`. `fail()` uses `max-age=0` and is never stored.
+- Past `max-age`, an entry inside its `stale-while-revalidate` window is served
+  immediately while one request refreshes it behind the scenes - so a popular
+  entry expiring does not send a herd upstream.
+- If JioSaavn is failing, an expired copy is served rather than an error
+  (`X-Cache: STALE-ERROR`). Entries are kept for a day beyond their stale window
+  purely for that.
+- Cache keys use only the meaningful params, sorted, with search terms trimmed
+  and lower-cased, so `?query=Kesariya`, `?query=kesariya%20` and
+  `?query=kesariya&fbclid=…` are one entry. Link-valued queries keep their case,
+  because JioSaavn permalink tokens are case-sensitive.
+- Searches longer than 200 characters are refused with 414 before any subrequest.
+
+Every response carries `X-Cache: HIT | STALE | STALE-ERROR | MISS`, which is the
+quickest way to see whether traffic is actually being absorbed:
+
+```sh
+curl -sI "https://abinash-songs.pages.dev/artist/?query=arijit+singh" | grep -i x-cache
+```
+
+On the authenticated side, `currentUser()` resolves the account and its session
+in a single D1 query, and the session's "last active" write is handed to
+`waitUntil` so it never sits on the response path. The player's session poll
+follows what the tab is doing: every 20s while it is playing, every 60s when it
+is idle, plus an immediate check on focus, tab switch and reconnect.
+
+Not available on this project yet, because it is served from `pages.dev` with no
+custom domain and therefore no zone: WAF rate limiting rules, Cache Rules, and
+tiered-cache configuration. Adding a custom domain unlocks all three, and a
+per-IP rate limiting rule on `/song/*`, `/artist/*` and `/api/auth/login` would
+be the first thing worth adding. Note also that concurrent misses for the same
+cold key are not collapsed - each one runs the handler - so a brand-new viral
+entry still costs one upstream call per concurrent request until the first store
+lands.
+
 ## Manual upload (fallback only)
 
 If Git is unavailable, `npm run deploy:manual` uploads the working directory

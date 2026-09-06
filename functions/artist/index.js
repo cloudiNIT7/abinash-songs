@@ -4,8 +4,9 @@
    The id response uses the same `{name, songs}` shape as /playlist/, so the
    player can load it directly. */
 import { searchArtists, getArtist, json, fail, flags } from "../_lib/saavn.js";
+import { withEdgeCache } from "../_lib/cache.js";
 
-export async function onRequestGet({ request }) {
+async function handler({ request }) {
 	const url = new URL(request.url);
 	const id = url.searchParams.get("id");
 	const query = url.searchParams.get("query");
@@ -15,11 +16,15 @@ export async function onRequestGet({ request }) {
 		if (id) {
 			const artist = await getArtist(id, lyrics);
 			if (!artist) return fail("That artist could not be loaded.");
-			return json(artist, { maxAge: 600 });
+			// Carries media urls, so a short stale window only.
+			return json(artist, { maxAge: 900, swr: 300 });
 		}
 		if (!query) return fail("Query or id is required to search artists!");
-		return json({ status: true, artists: await searchArtists(query) }, { maxAge: 300 });
+		// Names and photos: safe to serve stale for a while.
+		return json({ status: true, artists: await searchArtists(query) }, { maxAge: 900, swr: 900 });
 	} catch (e) {
 		return fail(e.message || "Artist lookup failed.");
 	}
 }
+
+export const onRequestGet = withEdgeCache(handler);

@@ -341,13 +341,25 @@ export async function getArtist(artistId, lyrics) {
 
 /* ---------- response helpers ---------- */
 
-export function json(body, { status = 200, maxAge = 60 } = {}) {
+/**
+ * JSON response helper.
+ *
+ * `maxAge` is how long the answer stays fresh; `swr` (stale-while-revalidate) is
+ * how long past that the edge cache in `_lib/cache.js` may still serve it while
+ * refreshing behind the request. Answers that must not go stale - anything
+ * carrying a media url that might be re-signed upstream - leave `swr` at 0.
+ */
+export function json(body, { status = 200, maxAge = 60, swr = 0 } = {}) {
+	const cacheControl = maxAge > 0
+		? `public, max-age=${maxAge}, s-maxage=${maxAge + swr}` +
+		  (swr > 0 ? `, stale-while-revalidate=${swr}` : "")
+		: "public, max-age=0";
 	return new Response(JSON.stringify(body), {
 		status,
 		headers: {
 			"Content-Type": "application/json; charset=utf-8",
 			// Same-origin app, so no CORS header: nothing else needs this API.
-			"Cache-Control": `public, max-age=${maxAge}, s-maxage=${maxAge}`,
+			"Cache-Control": cacheControl,
 			"X-Content-Type-Options": "nosniff",
 		},
 	});

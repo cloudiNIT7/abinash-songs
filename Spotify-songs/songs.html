@@ -793,6 +793,25 @@
 		.albums-overlay__close { background:none; border:none; color:#fff; font-size:34px; line-height:1; cursor:pointer; opacity:.85; transition:opacity .2s, transform .2s; }
 		.albums-overlay__close:hover { opacity:1; transform:scale(1.1) rotate(90deg); }
 		.albums-overlay__grid { display:grid; gap:20px; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); padding:0 26px 48px; }
+		/* Section heading inside the Playlists overlay: the account's own lists
+		   come first, the curated ones below. */
+		.albums-overlay__section {
+			display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+			padding:0 26px; margin:6px 0 14px;
+		}
+		.albums-overlay__section h3 { color:#fff; font-size:19px; font-weight:800; margin:0; }
+		.albums-overlay__section p { color:#9b9b9b; font-size:13px; margin:0; }
+		.albums-overlay__section--tight { margin-top:26px; }
+		.albums-new {
+			background:var(--sp-green); color:#000; border:none; border-radius:22px;
+			padding:8px 16px; font-weight:700; font-size:13px; font-family:inherit; cursor:pointer;
+			transition:background .15s, transform .15s;
+		}
+		.albums-new:hover { background:var(--sp-green-h); transform:scale(1.04); }
+		.albums-mine__empty { color:#9b9b9b; font-size:14px; padding:0 26px 6px; }
+		@media (max-width:768px){
+			.albums-overlay__section, .albums-mine__empty { padding-left:16px; padding-right:16px; }
+		}
 
 		/* ---- Profile / Your Library overlay (advanced UI) ---- */
 		.profile-overlay { background:#0d0d0f; }
@@ -4618,11 +4637,17 @@
 		}
 
 		function promptNewPlaylist() {
-			askPlaylistName("New playlist").then(function (name) {
-				if (!name) return;
-				apiPost("/api/me/playlists", { name: name }).then(function (d) {
-					if (d && d.ok) renderProfilePlaylists();
-					else if (window.notify) window.notify((d && d.error) || "Couldn't create playlist", "error");
+			// Returns the created playlist (or null), so callers such as the
+			// Playlists overlay can refresh their own grid.
+			return askPlaylistName("New playlist").then(function (name) {
+				if (!name) return null;
+				return apiPost("/api/me/playlists", { name: name }).then(function (d) {
+					if (d && d.ok) {
+						renderProfilePlaylists();
+						return d.playlist || { name: name };
+					}
+					if (window.notify) window.notify((d && d.error) || "Couldn't create playlist", "error");
+					return null;
 				});
 			});
 		}
@@ -5169,6 +5194,12 @@
 		window.SongsApp = {
 			getTracks: function () { return allTracks; },
 			getPlaylists: function () { return PLAYLISTS; },
+			// The Playlists overlay lists the account's own playlists alongside
+			// the curated ones, so it needs both the data and the openers.
+			getUserPlaylists: playlistsApi,
+			openUserPlaylist: openUserPlaylist,
+			newPlaylist: promptNewPlaylist,
+			gradientFor: gradientFor,
 			getLanguages: function () { return LANGS; },
 			getLanguage: function () { return currentLang; },
 			selectLanguage: selectLang,
@@ -5278,14 +5309,23 @@
 		 * A session can end while this tab is still open: signed out from the
 		 * Devices list on another device, "sign out all other devices", or a
 		 * password reset. Without this the tab would keep playing until it next
-		 * happened to call the API, so poll for it and act at once. */
-		var SESSION_POLL_MS = 20000;
+		 * happened to call the API, so poll for it and act at once.
+		 *
+		 * The interval follows what the tab is doing: a tab that is playing gets
+		 * checked often, an idle one less so. At scale this poll is the steadiest
+		 * load on the database, and an idle tab noticing a minute later costs
+		 * nothing - it is not playing anything. Focus, tab switch and reconnect
+		 * check immediately regardless, as does any API call answering 401. */
+		var SESSION_POLL_PLAYING_MS = 20000;
+		var SESSION_POLL_IDLE_MS = 60000;
 		var sessionEnded = false;
+		var sessionTimer = null;
 		var lastSessionCheck = Date.now();
 
 		function forceSignOut() {
 			if (sessionEnded) return;
 			sessionEnded = true;
+			if (sessionTimer) clearTimeout(sessionTimer);
 			// Stop the music before leaving, or the audio element would keep
 			// playing through the navigation on some browsers.
 			try {
@@ -5308,11 +5348,26 @@
 				.catch(function () { /* offline or a blip: keep playing */ });
 		}
 
-		setInterval(function () { if (!document.hidden) checkSession(false); }, SESSION_POLL_MS);
+		function isPlaying() {
+			var audio = document.querySelector("audio");
+			return !!(audio && !audio.paused && !audio.ended && audio.currentSrc);
+		}
+		function scheduleSessionCheck() {
+			if (sessionEnded) return;
+			if (sessionTimer) clearTimeout(sessionTimer);
+			sessionTimer = setTimeout(function () {
+				if (!document.hidden) checkSession(false);
+				scheduleSessionCheck();
+			}, isPlaying() ? SESSION_POLL_PLAYING_MS : SESSION_POLL_IDLE_MS);
+		}
+		scheduleSessionCheck();
+
 		// Coming back to the tab is the moment a stale session is most likely.
 		document.addEventListener("visibilitychange", function () { if (!document.hidden) checkSession(true); });
 		window.addEventListener("focus", function () { checkSession(false); });
 		window.addEventListener("online", function () { checkSession(true); });
+		// Starting playback tightens the interval straight away.
+		document.addEventListener("play", function () { scheduleSessionCheck(); }, true);
 	});
 </script>
 
@@ -5681,14 +5736,118 @@
     <span>Playlists</span>
     <button id="albumsClose" class="albums-overlay__close" aria-label="Close">&times;</button>
   </div>
+
+  <!-- The account's own playlists, then the curated JioSaavn ones. -->
+  <div class="albums-overlay__section">
+    <h3>Your playlists</h3>
+    <button type="button" class="albums-new" id="albumsNewPlaylist">+ New playlist</button>
+  </div>
+  <div class="albums-mine__empty" id="albumsMineEmpty">Loading&hellip;</div>
+  <div class="albums-overlay__grid" id="albumsMine"></div>
+
+  <div class="albums-overlay__section albums-overlay__section--tight">
+    <h3>Featured playlists</h3>
+    <p id="albumsFeaturedNote"></p>
+  </div>
   <div class="albums-overlay__grid" id="albumsGrid"></div>
 </div>
 <script>
 	(function () {
 		var overlay = document.getElementById("albumsOverlay");
 		var grid = document.getElementById("albumsGrid");
+		var mineGrid = document.getElementById("albumsMine");
+		var mineEmpty = document.getElementById("albumsMineEmpty");
+		var newBtn = document.getElementById("albumsNewPlaylist");
 		var closeBtn = document.getElementById("albumsClose");
 		var PLAY_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7L8 5z"/></svg>';
+		var PL_SVG = '<svg viewBox="0 0 24 24" fill="#fff"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2zm14 .5V21l4-2.5-4-2z"/></svg>';
+
+		/* Closing the overlay to show a list is the same dance in both grids:
+		 * if the overlay is the only open layer (opened from the languages
+		 * list) reuse its history entry as the songs entry - no back()+push
+		 * race. If it was opened on top of a song list, drop the overlay entry
+		 * and keep that one. `show` is then called to load the list. */
+		function leaveOverlayAnd(show) {
+			if (window.CSNav) {
+				if (window.CSNav.topIs("overlay") && window.CSNav.depth() === 1) {
+					hideOverlay();
+					window.CSNav.swapTop("songs", function () {
+						if (window.SongsApp) window.SongsApp.showLanguages();
+					});
+					show();
+					return;
+				}
+				hideOverlay();
+				window.CSNav.back("overlay");
+			} else {
+				hideOverlay();
+			}
+			show();
+		}
+
+		/* This account's own playlists. They have no artwork, so they get the
+		 * same stable gradient the library view gives them. */
+		function renderMine() {
+			if (!mineGrid) return;
+			mineGrid.innerHTML = "";
+			mineEmpty.hidden = false;
+			mineEmpty.textContent = "Loading\u2026";
+
+			var load = window.SongsApp && window.SongsApp.getUserPlaylists;
+			if (!load) { mineEmpty.textContent = "Sign in to keep your own playlists."; return; }
+
+			load().then(function (lists) {
+				mineGrid.innerHTML = "";
+				if (!lists || !lists.length) {
+					mineEmpty.hidden = false;
+					mineEmpty.textContent = "You haven't made a playlist yet. Use \u201c+ New playlist\u201d, or the \u2295 on any song.";
+					return;
+				}
+				mineEmpty.hidden = true;
+				lists.forEach(function (pl) {
+					var card = document.createElement("div");
+					card.className = "album-card";
+
+					var artWrap = document.createElement("div");
+					artWrap.className = "album-card__art";
+					artWrap.style.background = (window.SongsApp.gradientFor || function () { return "#333"; })(pl.name);
+					artWrap.style.display = "flex";
+					artWrap.style.alignItems = "center";
+					artWrap.style.justifyContent = "center";
+					var icon = document.createElement("span");
+					icon.style.width = "42px";
+					icon.style.opacity = ".92";
+					icon.innerHTML = PL_SVG;
+					var play = document.createElement("span");
+					play.className = "album-card__play";
+					play.innerHTML = PLAY_SVG;
+					artWrap.appendChild(icon);
+					artWrap.appendChild(play);
+
+					var title = document.createElement("div");
+					title.className = "album-card__title";
+					title.textContent = pl.name;
+					var sub = document.createElement("div");
+					sub.className = "album-card__title";
+					sub.style.color = "#9b9b9b";
+					sub.style.fontWeight = "500";
+					sub.textContent = pl.count + (pl.count === 1 ? " song" : " songs");
+
+					card.appendChild(artWrap);
+					card.appendChild(title);
+					card.appendChild(sub);
+					card.addEventListener("click", function () {
+						leaveOverlayAnd(function () {
+							window.SongsApp.openUserPlaylist(pl.id, pl.name);
+						});
+					});
+					mineGrid.appendChild(card);
+				});
+			}).catch(function () {
+				mineEmpty.hidden = false;
+				mineEmpty.textContent = "Couldn't load your playlists.";
+			});
+		}
 
 		// Grid of the curated JioSaavn playlists. Picking one loads it into
 		// the main track list and hands it to the player as the new queue.
@@ -5722,32 +5881,16 @@
 				card.appendChild(artWrap);
 				card.appendChild(title);
 				card.addEventListener("click", function () {
-					// Turn the overlay into the playlist's song list in one move.
-					// If the overlay is the only open layer (opened from the
-					// languages list), reuse its history entry as the songs
-					// entry - no back()+push race. If it was opened on top of a
-					// song list, drop the overlay entry and keep that one.
-					if (window.CSNav) {
-						if (window.CSNav.topIs("overlay") && window.CSNav.depth() === 1) {
-							hideOverlay();
-							window.CSNav.swapTop("songs", function () {
-								if (window.SongsApp) window.SongsApp.showLanguages();
-							});
-							if (window.SongsApp) window.SongsApp.openPlaylist(pl);
-							return;
-						}
-						hideOverlay();
-						window.CSNav.back("overlay");
-					} else {
-						hideOverlay();
-					}
-					if (window.SongsApp) window.SongsApp.openPlaylist(pl);
+					leaveOverlayAnd(function () {
+						if (window.SongsApp) window.SongsApp.openPlaylist(pl);
+					});
 				});
 				grid.appendChild(card);
 			});
 		}
 		function openOverlay() {
 			render();
+			renderMine();
 			overlay.classList.add("is-open");
 			overlay.setAttribute("aria-hidden", "false");
 			if (window.CSNav && !window.CSNav.has("overlay")) window.CSNav.push("overlay", hideOverlay);
@@ -5766,6 +5909,14 @@
 		if (albumsBtn) albumsBtn.addEventListener("click", function (e) { e.preventDefault(); openOverlay(); });
 		if (albumsNav) albumsNav.addEventListener("click", function (e) { e.preventDefault(); openOverlay(); });
 		if (closeBtn) closeBtn.addEventListener("click", closeOverlay);
+		// "+ New playlist" reuses the same in-page prompt the library view uses,
+		// then refreshes just this grid.
+		if (newBtn) newBtn.addEventListener("click", function () {
+			if (!window.SongsApp || !window.SongsApp.newPlaylist) return;
+			Promise.resolve(window.SongsApp.newPlaylist()).then(function (created) {
+				if (created) renderMine();
+			});
+		});
 		overlay.addEventListener("click", function (e) { if (e.target === overlay) closeOverlay(); });
 		document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeOverlay(); });
 		window.openAlbums = openOverlay;

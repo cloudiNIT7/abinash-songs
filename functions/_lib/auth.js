@@ -263,9 +263,17 @@ function readCookie(request, name) {
 	return null;
 }
 
+const USER_COLUMNS =
+	"id, email, username, display_name, bio, avatar_color, avatar_url, pref_lang, profile_complete, created_at";
+
 /** Returns the signed-in user row, or null. Never throws on a bad cookie.
- *  The row carries `session_id` (the cookie's session), used by the devices UI. */
-export async function currentUser(request, env) {
+ *  The row carries `session_id` (the cookie's session), used by the devices UI.
+ *
+ *  `waitUntil` is optional: when a caller passes Pages' own waitUntil, the
+ *  "last active" write is moved off the response path, which matters once the
+ *  session poll from every open tab is landing here.
+ */
+export async function currentUser(request, env, waitUntil) {
 	const raw = readCookie(request, COOKIE);
 	if (!raw || !raw.includes(".")) return null;
 
@@ -287,34 +295,49 @@ export async function currentUser(request, env) {
 	const now = Math.floor(Date.now() / 1000);
 	if (!claims || !claims.uid || !claims.exp || claims.exp < now) return null;
 
-	// Cookies issued before device tracking carry no sid; they stay valid, they
-	// just can't be listed or revoked until the next sign-in.
+	let row = null;
+
+	// One round trip for the account and its session. This is the hot path -
+	// every authenticated request and every session poll runs it - so it is
+	// deliberately a single query rather than two.
 	if (claims.sid) {
-		let session = null;
 		try {
-			session = await env.DB.prepare(
-				"SELECT revoked_at, expires_at, last_seen_at FROM sessions WHERE id = ? AND user_id = ?",
+			row = await env.DB.prepare(
+				`SELECT ${USER_COLUMNS.split(", ").map((c) => "u." + c).join(", ")},
+				        s.revoked_at AS s_revoked, s.expires_at AS s_expires, s.last_seen_at AS s_seen
+				   FROM users u
+				   LEFT JOIN sessions s ON s.id = ? AND s.user_id = u.id
+				  WHERE u.id = ?`,
 			).bind(claims.sid, claims.uid).first();
 		} catch (e) {
-			session = null;                  // table missing: fall back to the cookie alone
+			row = null;                     // sessions table missing: fall back below
 		}
-		if (session) {
-			if (session.revoked_at > 0 || session.expires_at < now) return null;
+
+		// s_revoked is null when no session row exists, which is a cookie issued
+		// before device tracking: still valid, just not listable or revocable.
+		if (row && row.s_revoked !== null && row.s_revoked !== undefined) {
+			if (row.s_revoked > 0 || row.s_expires < now) return null;
 			// Keep "last active" fresh without a write on every single request.
-			if (now - session.last_seen_at > 300) {
-				try {
-					await env.DB.prepare("UPDATE sessions SET last_seen_at = ? WHERE id = ?")
-						.bind(now, claims.sid).run();
-				} catch (e) { /* non-fatal */ }
+			if (now - row.s_seen > 300) {
+				const touch = env.DB.prepare("UPDATE sessions SET last_seen_at = ? WHERE id = ?")
+					.bind(now, claims.sid).run().catch(() => {});
+				if (waitUntil) waitUntil(touch); else await touch;
 			}
 		}
 	}
 
-	const user = await env.DB.prepare(
-		"SELECT id, email, username, display_name, bio, avatar_color, avatar_url, pref_lang, profile_complete, created_at FROM users WHERE id = ?",
-	).bind(claims.uid).first();
-	if (user) user.session_id = claims.sid || "";
-	return user;
+	if (!row) {
+		row = await env.DB.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`)
+			.bind(claims.uid).first();
+	}
+
+	if (row) {
+		delete row.s_revoked;
+		delete row.s_expires;
+		delete row.s_seen;
+		row.session_id = claims.sid || "";
+	}
+	return row;
 }
 
 /* ---------- rate limiting ---------- */
