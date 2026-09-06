@@ -13,7 +13,7 @@ Live: https://abinash-songs.pages.dev
 | `index.html`, `premium.html`, `help.html`, `download.html` | Marketing pages |
 | `login.html`, `verify-otp.html`, `profile.html` | Account flow (browser-only, see note) |
 | `Spotify-songs/songs.html` | The web player: search, playlists, queue, lyrics, now-playing |
-| `functions/` | The API: `/song/`, `/song/get/`, `/playlist/`, `/album/`, `/lyrics/`, `/result/` |
+| `functions/` | The API: `/song/`, `/song/get/`, `/playlist/`, `/album/`, `/artist/`, `/lyrics/`, `/result/` |
 | `functions/_lib/des.js` | DES-ECB decrypt for JioSaavn's `encrypted_media_url` (WebCrypto has no DES) |
 | `functions/api/auth/` | Signup, login, logout, session and profile endpoints |
 | `functions/_lib/auth.js` | PBKDF2 hashing, signed session cookies, login throttling |

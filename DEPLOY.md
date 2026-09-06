@@ -39,6 +39,7 @@ you prefer the Flask backend locally.
 
 ```sh
 curl -s "https://abinash-songs.pages.dev/song/?query=kesariya&songdata=false" | head -c 120
+curl -s "https://abinash-songs.pages.dev/artist/?query=arijit+singh" | head -c 120
 curl -o /dev/null -w "%{http_code}\n" "https://abinash-songs.pages.dev/functions/_lib/saavn.js"   # must be 404
 ```
 

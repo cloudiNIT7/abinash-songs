@@ -8,6 +8,8 @@
 		"/playlist/*",
 		"/album",
 		"/album/*",
+		"/artist",
+		"/artist/*",
 		"/lyrics",
 		"/lyrics/*",
 		"/result",
