@@ -65,11 +65,31 @@ cannot be forged from devtools the way the old localStorage gate could.
 | `GET /api/me/approvals` | Sign-ins waiting for this device to answer |
 | `GET /api/me/approvals/wait` | The same, but held open until one appears (long poll) |
 | `POST /api/me/approvals` | `{id, action}` approves or denies one |
+| `GET /api/me/push` | The VAPID public key a browser needs in order to subscribe |
+| `POST /api/me/push` | Store this device's push subscription |
+| `POST /api/me/push/remove` | `{endpoint}` forgets it again |
 
 Bindings on the Pages project (production and preview):
 
 - `DB` → D1 database `cloud-songs-auth`
 - `SESSION_SECRET` → secret text
+- `VAPID_PRIVATE_JWK` → secret: the push key pair as a P-256 private JWK
+  (`{"kty":"EC","crv":"P-256","d":…,"x":…,"y":…}`). The public key is derived from
+  it, so there is nothing else to configure. Set with:
+
+```sh
+echo '<jwk json>' | npx wrangler pages secret put VAPID_PRIVATE_JWK --project-name abinash-songs
+```
+
+A fresh pair can be generated with:
+
+```sh
+node -e 'const{webcrypto:w}=require("node:crypto");(async()=>{const k=await w.subtle.generateKey({name:"ECDSA",namedCurve:"P-256"},true,["sign"]);const j=await w.subtle.exportKey("jwk",k.privateKey);console.log(JSON.stringify({kty:"EC",crv:"P-256",d:j.d,x:j.x,y:j.y}))})()'
+```
+
+Without that secret, push is simply off: `/api/me/push` reports
+`available:false`, the client skips subscribing, and in-app and desktop
+notifications carry on working.
 
 To apply a schema change:
 
@@ -82,12 +102,14 @@ Migrations are numbered files under `migrations/`, applied the same way:
 ```sh
 npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0005_sessions.sql
 npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0006_login_approvals.sql
+npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0007_push_subscriptions.sql
 ```
 
 `0005_sessions.sql` backs the Devices list, `0006_login_approvals.sql` the
-sign-in approvals. Until each is applied the matching feature simply stays out of
-the way: the device list reports that history isn't available, and a correct
-password signs in directly as before.
+sign-in approvals, `0007_push_subscriptions.sql` the phone notifications. Until
+each is applied the matching feature simply stays out of the way: the device list
+reports that history isn't available, a correct password signs in directly as
+before, and nothing is pushed.
 
 ## Sign-in approvals
 
@@ -106,10 +128,16 @@ of those devices has to approve it.
   back. A dropped connection backs off and retries.
 - It is raised three ways: a pop-up, an Approve/Deny entry in the notification
   centre (so dismissing the pop-up loses nothing), and a system notification when
-  the browser has been given permission - offered as "Turn on desktop alerts" in
-  the notification panel. The system notification is tagged per request so it
+  the browser has been given permission - offered as "Turn on alerts" in the
+  notification panel. The system notification is tagged per request so it
   replaces rather than stacks, stays up until answered, and is dismissed
   automatically once the request is answered anywhere.
+- On a phone the notification comes from the service worker, because Android has
+  no page-level `Notification` constructor, and it carries Approve and Deny
+  buttons that the worker answers directly - no need to open the app. Web Push
+  reaches a device with the app closed: the push carries no payload at all, so
+  `sw.js` wakes, asks `/api/me/approvals` what is waiting and draws the
+  notification itself. Nothing about the account travels in the push.
 - Approving lets the waiting device claim a session, once, and only from the same
   browser it asked from (the request records its User-Agent). Denying keeps it out
   and tells it so. Unanswered requests expire after 5 minutes.
@@ -123,9 +151,10 @@ that file are the knobs. For a large number of concurrent listeners the right
 next step is a Durable Object per account, pushing over a WebSocket with no
 polling at all; that needs a DO binding on the Pages project.
 
-Note that system notifications only work while a tab is open. Alerting a device
-with the app closed would need Web Push (VAPID keys plus stored subscriptions),
-which is not set up.
+Note that a phone only shows these once the site is added to the home screen on
+iOS (Safari requires an installed PWA for Web Push); on Android Chrome a normal
+tab is enough. Reaching a device that has never been signed in, or that has
+turned notifications off, is not possible by design.
 
 There is no email provider, so there is no verification code: signing up logs
 you straight in and `verify-otp.html` just forwards you on.

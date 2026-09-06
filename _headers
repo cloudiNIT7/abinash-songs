@@ -28,5 +28,13 @@
 /*.html
   Cache-Control: no-cache
 
+# The service worker draws the notifications, so a stale copy would keep an old
+# one running. Always revalidate.
+/sw.js
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Cache-Control: no-cache
+
 /Spotify-songs/songs.html
   Cache-Control: no-cache

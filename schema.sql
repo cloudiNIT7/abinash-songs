@@ -73,6 +73,21 @@ CREATE TABLE IF NOT EXISTS login_approvals (
 CREATE INDEX IF NOT EXISTS login_approvals_user_idx
 	ON login_approvals (user_id, status, expires_at);
 
+-- Where to push, so a device can be told about a sign-in request even when the
+-- app is closed. Pushes carry no payload; the service worker asks the API what
+-- is waiting, so p256dh/auth are stored only for a future encrypted payload.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+	endpoint      TEXT PRIMARY KEY,
+	user_id       TEXT NOT NULL,
+	p256dh        TEXT,
+	auth          TEXT,
+	user_agent    TEXT,
+	created_at    INTEGER NOT NULL,
+	last_used_at  INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions (user_id);
+
 -- Throttles password guessing per email+IP. Rows are disposable.
 CREATE TABLE IF NOT EXISTS login_attempts (
 	key         TEXT PRIMARY KEY,

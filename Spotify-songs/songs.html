@@ -4,7 +4,7 @@
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no, viewport-fit=cover" />
 	<title>Cloud Songs - G-Eazy</title>
-	<link rel="icon" href="../assets/favicon.png?v=20260906e" />
+	<link rel="icon" href="../assets/favicon.png?v=20260906f" />
 	<link rel="manifest" href="../manifest.webmanifest" />
 	<meta name="theme-color" content="#121212" />
 	<meta name="mobile-web-app-capable" content="yes" />
@@ -34,7 +34,7 @@
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/9.2.0/nouislider.min.css" />
 
 	<!-- Compiled app styles -->
-	<link rel="stylesheet" href="../css/app.css?v=20260906e" />
+	<link rel="stylesheet" href="../css/app.css?v=20260906f" />
 
 	<style>
 		/* Small additions so the embedded page fits nicely inside this project */
@@ -1980,7 +1980,7 @@
 	<!-- Single-row header: brand + nav on the left, user controls on the right -->
 	<div class="app-topbar header">
 		<a href="#" class="brand" id="brandHome" title="Home">
-			<img class="brand__logo" src="../assets/logo.png?v=20260906e" alt="" />
+			<img class="brand__logo" src="../assets/logo.png?v=20260906f" alt="" />
 			<span class="brand__text">Cloud Songs</span>
 		</a>
 		<nav class="top-nav">
@@ -3000,7 +3000,7 @@
 </script>
 
 <!-- Language -> playlist catalogue, consumed by the data layer below -->
-<script src="../js/catalogue.js?v=20260906e"></script>
+<script src="../js/catalogue.js?v=20260906f"></script>
 
 <!-- ===================================================================
      JioSaavn data layer. Replaces the old S3 /api/songs + /api/videos
@@ -5315,7 +5315,7 @@
 <!-- Auth guard + personalization. Accounts live on the server (D1 via
      /api/auth/*, see js/auth.js); the browser only holds an HttpOnly
      session cookie, so this gate is enforced server-side. -->
-<script src="../js/auth.js?v=20260906e"></script>
+<script src="../js/auth.js?v=20260906f"></script>
 <script>
 	authReady().then(function () {
 		if (!isLoggedIn()) {
@@ -5575,16 +5575,18 @@
 				var ask = document.createElement("button");
 				ask.type = "button";
 				ask.className = "notif-enable";
-				ask.textContent = "Turn on desktop alerts";
+				ask.textContent = "Turn on alerts (phone + desktop)";
 				ask.addEventListener("click", function (e) {
 					e.stopPropagation();
 					ask.disabled = true;
 					var done = function (state) {
 						ask.remove();
 						if (state === "granted") {
-							addNotification("Desktop alerts are on. Sign-in requests will show on your system too.", "success");
+							addNotification("Alerts are on. Sign-in requests will show on this device, and on your phone once it's signed in.", "success");
+							// Register for push as well, so a closed app still hears.
+							if (window.CSPushSubscribe) window.CSPushSubscribe();
 						} else {
-							addNotification("Desktop alerts were not allowed. Requests still appear here.", "info");
+							addNotification("Alerts were not allowed. Requests still appear here.", "info");
 						}
 					};
 					try {
@@ -5827,13 +5829,40 @@
 		}
 
 		/* ---- system (OS) notification ----------------------------------------
-		 * This tab is often not the window in front, so raise the request with
-		 * the operating system too. Needs permission, which is asked for from the
-		 * notification centre; without it this is simply skipped. */
+		 * The tab is often not the window in front - and on a phone it is usually
+		 * not open at all - so raise the request with the operating system too.
+		 *
+		 * Android has no Notification constructor in a page, so this goes through
+		 * the service worker when one is available; that is also what lets the
+		 * notification carry Approve/Deny buttons. `new Notification` is the
+		 * desktop fallback. Permission is asked for from the notification centre;
+		 * without it this is simply skipped. */
 		var systemNotes = {};
+
+		function swReady() {
+			if (!("serviceWorker" in navigator) || !navigator.serviceWorker.ready) return null;
+			return navigator.serviceWorker.ready;
+		}
 
 		function systemAlert(a) {
 			if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+			var viaWorker = swReady();
+			if (viaWorker) {
+				viaWorker.then(function (reg) {
+					if (reg && reg.active) {
+						reg.active.postMessage({ type: "cs-show-approval", approval: a });
+					} else {
+						desktopAlert(a);
+					}
+				}).catch(function () { desktopAlert(a); });
+				return;
+			}
+			desktopAlert(a);
+		}
+
+		function desktopAlert(a) {
+			if (typeof Notification !== "function") return;         // Android: page-level API absent
 			try {
 				var note = new Notification("Approve sign-in to Cloud Songs?", {
 					body: describe(a) + (detail(a) ? "\n" + detail(a) : ""),
@@ -5854,7 +5883,72 @@
 		function closeSystemAlert(id) {
 			var note = systemNotes[id];
 			if (note) { try { note.close(); } catch (e) {} delete systemNotes[id]; }
+			var viaWorker = swReady();
+			if (viaWorker) {
+				viaWorker.then(function (reg) {
+					if (reg && reg.active) reg.active.postMessage({ type: "cs-close-approval", id: id });
+				}).catch(function () {});
+			}
 		}
+
+		/* ---- push: so a phone hears about this with the app closed -----------
+		 * The subscription is stored against the account, and the push itself
+		 * carries nothing: the service worker asks what is waiting. */
+		function subscribePush() {
+			if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+			if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+			fetch("/api/me/push", { credentials: "same-origin", cache: "no-store" })
+				.then(function (r) { return r.ok ? r.json() : null; })
+				.then(function (d) {
+					if (!d || !d.available || !d.key) return null;      // push not configured
+					return navigator.serviceWorker.ready.then(function (reg) {
+						if (!reg.pushManager) return null;
+						return reg.pushManager.getSubscription().then(function (existing) {
+							if (existing) return existing;
+							return reg.pushManager.subscribe({
+								userVisibleOnly: true,
+								applicationServerKey: urlBase64ToUint8Array(d.key),
+							});
+						});
+					});
+				})
+				.then(function (sub) {
+					if (!sub) return;
+					return fetch("/api/me/push", {
+						method: "POST",
+						credentials: "same-origin",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ subscription: sub.toJSON ? sub.toJSON() : sub }),
+					});
+				})
+				.catch(function () { /* push is a bonus; the tab still works */ });
+		}
+
+		function urlBase64ToUint8Array(base64) {
+			var padded = (base64 + "=".repeat((4 - (base64.length % 4)) % 4))
+				.replace(/-/g, "+").replace(/_/g, "/");
+			var raw = atob(padded);
+			var out = new Uint8Array(raw.length);
+			for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+			return out;
+		}
+
+		// The worker answers notification buttons on its own; keep this tab in step.
+		if ("serviceWorker" in navigator) {
+			navigator.serviceWorker.addEventListener("message", function (e) {
+				var msg = e.data || {};
+				if (msg.type === "cs-approvals" && msg.approvals) {
+					check(msg.approvals);
+				} else if (msg.type === "cs-approval-answered" && msg.id) {
+					answered[msg.id] = true;
+					if (current && current.id === msg.id) hideModal();
+					var text = msg.action === "approve" ? "Sign-in approved from a notification" : "Sign-in denied from a notification";
+					if (window.notifyResolve) window.notifyResolve("approval:" + msg.id, text, msg.action === "approve" ? "success" : "info");
+				}
+			});
+		}
+		window.CSPushSubscribe = subscribePush;
 
 		// This script sits above the pop-up's markup in the document, so wire it
 		// once the DOM is parsed and hold anything the poll finds meanwhile.
@@ -5889,6 +5983,9 @@
 			ready = true;
 			queued.splice(0).forEach(check);
 			listen();
+			// Already allowed on this device: make sure push is registered too,
+			// so the phone hears about a request with the app closed.
+			if ("Notification" in window && Notification.permission === "granted") subscribePush();
 		}
 		if (document.readyState === "loading") {
 			document.addEventListener("DOMContentLoaded", init);

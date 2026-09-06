@@ -18,7 +18,9 @@ Live: https://abinash-songs.pages.dev
 | `functions/_lib/des.js` | DES-ECB decrypt for JioSaavn's `encrypted_media_url` (WebCrypto has no DES) |
 | `functions/api/auth/` | Signup, login, logout, session and profile endpoints |
 | `functions/_lib/auth.js` | PBKDF2 hashing, signed session cookies, login throttling |
-| `schema.sql` | D1 schema for `users`, `sessions`, `login_approvals` and `login_attempts` |
+| `schema.sql` | D1 schema for `users`, `sessions`, `login_approvals`, `push_subscriptions` and `login_attempts` |
+| `sw.js` | Service worker: installability, and the notifications a phone shows (including Web Push) |
+| `functions/_lib/push.js` | Web Push: VAPID signing and payload-free nudges to an account's devices |
 | `js/catalogue.js` | Per-language playlist catalogue used by the player |
 | `_routes.json`, `_headers`, `.assetsignore` | Pages routing, headers and upload rules |
 
@@ -61,6 +63,9 @@ While an account has a recently-used session, a new sign-in with the right
 password is parked in `login_approvals` until one of those devices approves it.
 That device holds a long poll open, so the request reaches it in about half a
 second, and is raised three ways: a pop-up, an Approve/Deny notification, and a
-system notification once desktop alerts are allowed. Denying keeps the new device
-out; nothing answers within 5 minutes and it expires. An emailed code is offered
-as a fallback for when no device is reachable.
+system notification once alerts are allowed. On a phone the notification comes
+from `sw.js` with Approve/Deny buttons it answers itself, and Web Push reaches the
+device with the app closed - the push carries no payload, so the worker asks the
+API what is waiting. Denying keeps the new device out; nothing answers within 5
+minutes and it expires. An emailed code is offered as a fallback for when no
+device is reachable.

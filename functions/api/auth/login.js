@@ -4,8 +4,10 @@ import {
 	normaliseEmail, checkThrottle, recordFailure, clearFailures, clientKey, issueOtp,
 	countApprovers, createApproval,
 } from "../../_lib/auth.js";
+import { pushToUser } from "../../_lib/push.js";
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost(context) {
+	const { request, env } = context;
 	const body = await readJson(request);
 	const email = normaliseEmail(body.email);
 	const password = String(body.password || "");
@@ -53,6 +55,14 @@ export async function onRequestPost({ request, env }) {
 	try {
 		if (await countApprovers(env, user.id) > 0) {
 			const approval = await createApproval(env, user.id, request);
+			// Wake the account's other devices, even if the app is closed there.
+			// Best-effort and off the response path: an unreachable phone must
+			// not slow this reply down.
+			if (context.waitUntil) {
+				context.waitUntil(
+					pushToUser(env, user.id, { topic: "cs-approval" }).catch(() => {}),
+				);
+			}
 			return reply({
 				ok: false,
 				requiresApproval: true,
