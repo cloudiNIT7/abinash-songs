@@ -500,7 +500,8 @@ function otpEmail(email, code, purpose) {
 		: heading + ". Enter this code to continue:";
 	const text =
 		`Your Cloud Songs verification code is ${code}\n\n` +
-		`It expires in 10 minutes. If you didn't request this, you can ignore this email.`;
+		`It expires in 10 minutes. If you didn't request this, you can ignore this email.\n\n` +
+		`Found this in spam? Mark it as "not spam" so future codes reach your inbox.`;
 	const html =
 		`<div style="font-family:Arial,Helvetica,sans-serif;max-width:440px;margin:0 auto;padding:24px;color:#111">` +
 		`<h2 style="margin:0 0 6px;color:#1DB954">Cloud Songs</h2>` +
@@ -508,6 +509,8 @@ function otpEmail(email, code, purpose) {
 		`<div style="font-size:34px;font-weight:700;letter-spacing:8px;background:#f4f4f4;border-radius:10px;` +
 		`padding:16px 0;text-align:center;color:#111">${code}</div>` +
 		`<p style="margin:18px 0 0;font-size:12px;color:#888">This code expires in 10 minutes. ` +
-		`If you didn't request it, ignore this email.</p></div>`;
+		`If you didn't request it, ignore this email.</p>` +
+		`<p style="margin:8px 0 0;font-size:12px;color:#888">Found this in your spam folder? ` +
+		`Mark it as &ldquo;not spam&rdquo; so future codes reach your inbox.</p></div>`;
 	return { to: email, subject: `${code} is your Cloud Songs code`, text, html };
 }

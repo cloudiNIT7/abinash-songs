@@ -102,6 +102,19 @@
 				margin: -6px 0 16px;
 				min-height: 16px;
 			}
+			/* Neutral counterpart to .login_error: explains why the user is here
+			   (for example after being signed out from another device). */
+			.login_notice {
+				color: #d6d6d6;
+				background: rgba(29, 185, 84, .12);
+				border: 1px solid rgba(29, 185, 84, .35);
+				border-radius: 10px;
+				padding: 10px 12px;
+				font-size: 13px;
+				line-height: 1.45;
+				margin: 0 0 16px;
+			}
+			.login_notice[hidden] { display: none; }
 			.login_submit {
 				width: 100%;
 				border: none;
@@ -166,6 +179,8 @@
 
 				<h1 id="formTitle">Log in to Cloud Songs</h1>
 
+				<p class="login_notice" id="authNotice" role="status" hidden></p>
+
 				<form id="authForm">
 					<div class="login_field" id="usernameField">
 						<label for="username">Username</label>
@@ -198,6 +213,15 @@
 			const authSubmit = document.getElementById("authSubmit");
 			const authForm = document.getElementById("authForm");
 			const authError = document.getElementById("authError");
+			const authNotice = document.getElementById("authNotice");
+
+			// Arriving here because the session ended (signed out from the
+			// Devices list on another device, "sign out all other devices", or a
+			// password change) - say so instead of looking like a random logout.
+			if (/[?&]signedout=1/.test(location.search)) {
+				authNotice.textContent = "You were signed out. This can happen when the session is ended from another device or the password changes. Log in to continue.";
+				authNotice.hidden = false;
+			}
 			const passwordInput = document.getElementById("password");
 			const usernameField = document.getElementById("usernameField");
 			const usernameInput = document.getElementById("username");

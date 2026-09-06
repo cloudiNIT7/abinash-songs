@@ -51,5 +51,7 @@ authReady().then(() => { if (!isLoggedIn()) location.href = "./login.html"; });
 
 Every sign-in also writes a row to `sessions`, so the account menu's **Devices**
 entry can show where the account is logged in (browser, OS, city, last active)
-and sign any of them out. Revoking a session invalidates its cookie on the next
-request; a password reset revokes them all.
+and sign any of them out. A signed-out device stops being able to call the API
+at once, and the page it left open notices within about 20 seconds - or as soon
+as the tab is focused - and returns to the login screen. A password reset ends
+every session the same way.

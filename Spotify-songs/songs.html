@@ -3017,7 +3017,11 @@
 
 		function apiGet(path) {
 			return fetch(path, { credentials: "same-origin", cache: "no-store" })
-				.then(function (r) { return r.ok ? r.json() : null; })
+				.then(function (r) {
+					// 401 means this session was ended elsewhere; leave at once.
+					if (r.status === 401 && window.CSForceSignOut) window.CSForceSignOut();
+					return r.ok ? r.json() : null;
+				})
 				.catch(function () { return null; });
 		}
 		function apiPost(path, body) {
@@ -3026,7 +3030,10 @@
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body || {}),
 				credentials: "same-origin",
-			}).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+			}).then(function (r) {
+				if (r.status === 401 && window.CSForceSignOut) window.CSForceSignOut();
+				return r.ok ? r.json() : null;
+			}).catch(function () { return null; });
 		}
 
 		// Pull this account's whole library from the server into memory.
@@ -4685,24 +4692,20 @@
 				btn.type = "button";
 				btn.className = "dev-revoke";
 				btn.textContent = "Sign out";
+				// No confirmation: signing one device out is a small, obvious
+				// action, and the point of the button is to act immediately.
 				btn.addEventListener("click", function () {
-					confirmModal(
-						"This device will be signed out and asked to log in again.",
-						"Sign out", "Sign out this device?",
-					).then(function (yes) {
-						if (!yes) return;
-						btn.disabled = true;
-						btn.textContent = "Signing out\u2026";
-						apiPost("/api/me/devices", { id: d.id }).then(function (res) {
-							if (res && res.ok) {
-								if (window.notify) window.notify("Device signed out", "success");
-								renderDevices();
-							} else {
-								btn.disabled = false;
-								btn.textContent = "Sign out";
-								if (window.notify) window.notify((res && res.error) || "Couldn't sign that device out", "error");
-							}
-						});
+					btn.disabled = true;
+					btn.textContent = "Signing out\u2026";
+					apiPost("/api/me/devices", { id: d.id }).then(function (res) {
+						if (res && res.ok) {
+							if (window.notify) window.notify("Device signed out", "success");
+							renderDevices();
+						} else {
+							btn.disabled = false;
+							btn.textContent = "Sign out";
+							if (window.notify) window.notify((res && res.error) || "Couldn't sign that device out", "error");
+						}
 					});
 				});
 				row.appendChild(btn);
@@ -5270,6 +5273,46 @@
 			// Wait for the cookie to be cleared before leaving the page.
 			logOut().then(function () { window.location.href = "../index.html"; });
 		});
+
+		/* ---- session watchdog ------------------------------------------------
+		 * A session can end while this tab is still open: signed out from the
+		 * Devices list on another device, "sign out all other devices", or a
+		 * password reset. Without this the tab would keep playing until it next
+		 * happened to call the API, so poll for it and act at once. */
+		var SESSION_POLL_MS = 20000;
+		var sessionEnded = false;
+		var lastSessionCheck = Date.now();
+
+		function forceSignOut() {
+			if (sessionEnded) return;
+			sessionEnded = true;
+			// Stop the music before leaving, or the audio element would keep
+			// playing through the navigation on some browsers.
+			try {
+				var audio = document.querySelector("audio");
+				if (audio) { audio.pause(); audio.removeAttribute("src"); audio.load(); }
+			} catch (e) { /* nothing to stop */ }
+			window.location.replace("../login.html?signedout=1");
+		}
+		// The API helpers call this when a request comes back 401.
+		window.CSForceSignOut = forceSignOut;
+
+		function checkSession(force) {
+			if (sessionEnded) return;
+			var now = Date.now();
+			if (!force && now - lastSessionCheck < 5000) return;   // don't stampede
+			lastSessionCheck = now;
+			fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" })
+				.then(function (r) { return r.ok ? r.json() : null; })
+				.then(function (d) { if (d && !d.user) forceSignOut(); })
+				.catch(function () { /* offline or a blip: keep playing */ });
+		}
+
+		setInterval(function () { if (!document.hidden) checkSession(false); }, SESSION_POLL_MS);
+		// Coming back to the tab is the moment a stale session is most likely.
+		document.addEventListener("visibilitychange", function () { if (!document.hidden) checkSession(true); });
+		window.addEventListener("focus", function () { checkSession(false); });
+		window.addEventListener("online", function () { checkSession(true); });
 	});
 </script>
 
