@@ -17,7 +17,7 @@ const SUBJECT = "mailto:admin@abinash-songs.pages.dev";
 // Cache the per-account endpoint list in KV so waking an account's other
 // devices does not read D1 first. Invalidated on any change; D1 stays the
 // source of truth and a miss (or no binding) just runs the query.
-import { kvGet, kvPut, kvDelete, hasKv, pushListKey, fcmListKey, suggestKey } from "./kvstore.js";
+import { kvGet, kvPut, kvDelete, hasKv, pushListKey, fcmListKey } from "./kvstore.js";
 
 const PUSH_LIST_TTL = 3600;            // seconds a cached endpoint list is trusted
 

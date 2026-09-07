@@ -103,7 +103,3 @@ export function pushListKey(userId) { return "auth:push:" + userId; }
 
 /** The list of native FCM device tokens for an account. */
 export function fcmListKey(userId) { return "auth:fcm:" + userId; }
-
-/** The most recent "listen to this" nudge, so a browser's service worker can
- *  read what to show after a content-free Web Push tickle. */
-export function suggestKey(userId) { return "auth:suggest:" + userId; }

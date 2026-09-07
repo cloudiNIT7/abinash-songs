@@ -1,28 +1,24 @@
-/* Suggestion nudges for the signed-in device.
+/* Suggestion preferences for the signed-in account.
  *
- *   GET  /api/me/suggestion   - the pending "listen to this" text, if any.
- *                               The service worker calls this after a
- *                               content-free Web Push tickle, the same way the
- *                               approval flow works.
- *   POST /api/me/suggestion   - {optout: true|false} turn the nudges off or on.
+ *   GET  /api/me/suggestion   - are the "listen to this" nudges on?
+ *   POST /api/me/suggestion   - {optout: true|false} turn them off or on.
  *
+ * The nudges themselves are delivered by Firebase as notification messages, so
+ * nothing here is involved in showing them - this is only the on/off switch.
  * Scoped to the signed-in user by the /api/me/* auth middleware.
  */
 import { reply, readJson } from "../../_lib/auth.js";
-import { kvGet, suggestKey } from "../../_lib/kvstore.js";
 
 export async function onRequestGet({ env, data }) {
-	const pending = await kvGet(env, suggestKey(data.user.id), { cacheTtl: 0 });
-	if (!pending) return reply({ ok: true, suggestion: null });
-	return reply({
-		ok: true,
-		suggestion: {
-			title: pending.title || "Listen to this",
-			body: pending.body || "",
-			songId: pending.songId || "",
-			songName: pending.songName || "",
-		},
-	});
+	let optout = 0;
+	try {
+		const row = await env.DB.prepare("SELECT optout FROM suggest_state WHERE user_id = ?")
+			.bind(data.user.id).first();
+		optout = (row && row.optout) || 0;
+	} catch (e) {
+		return reply({ ok: true, available: false, optout: false });
+	}
+	return reply({ ok: true, available: true, optout: !!optout });
 }
 
 export async function onRequestPost({ request, env, data }) {
