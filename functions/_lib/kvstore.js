@@ -85,3 +85,18 @@ export async function kvDelete(env, key) {
 
 export function sessionKey(sid) { return "auth:sess:" + sid; }
 export function throttleKey(key) { return "auth:throttle:" + key; }
+
+/** One pending email OTP per address (stored hashed, same as the D1 row). */
+export function otpKey(email) { return "auth:otp:" + email; }
+
+/** A login-approval's status, written through on every state change so the
+ *  waiting device's poll can read it from KV instead of D1. */
+export function approvalKey(id) { return "auth:appr:" + id; }
+
+/** A per-account marker that says "this account has >=1 pending approval",
+ *  so the wait.js long-poll can skip D1 when there is nothing to raise. */
+export function userPendingKey(userId) { return "auth:pending:" + userId; }
+
+/** The list of push endpoints for an account, cached so a login's "wake my
+ *  other devices" does not read D1 first. */
+export function pushListKey(userId) { return "auth:push:" + userId; }

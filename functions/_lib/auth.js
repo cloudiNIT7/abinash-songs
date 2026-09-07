@@ -34,7 +34,7 @@ const enc = new TextEncoder();
 /* KV offloading: session lookups and rate limiting are cached in the globally
  * replicated `CACHE` namespace so the single D1 database is not hit on every
  * poll and every login. All of it degrades to D1 when no namespace is bound. */
-import { kvGet, kvPut, kvDelete, sessionKey, throttleKey, hasKv } from "./kvstore.js";
+import { kvGet, kvPut, kvDelete, sessionKey, throttleKey, otpKey, approvalKey, userPendingKey, hasKv } from "./kvstore.js";
 
 const SESSION_CACHE_TTL = 60;          // seconds a resolved session is trusted from KV
 
@@ -407,21 +407,44 @@ export async function createApproval(env, userId, request) {
 	const id = randomHex(16);
 	const now = Math.floor(Date.now() / 1000);
 	const d = describeClient(request);
+	const expiresAt = now + APPROVAL_TTL;
 	await env.DB.prepare(
 		`INSERT INTO login_approvals
 		   (id, user_id, status, created_at, expires_at, device, os, browser, ip, location, user_agent)
 		 VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)`,
-	).bind(id, userId, now, now + APPROVAL_TTL, d.device, d.os, d.browser, d.ip, d.location, d.user_agent).run();
+	).bind(id, userId, now, expiresAt, d.device, d.os, d.browser, d.ip, d.location, d.user_agent).run();
+
+	// Write-through to KV so the waiting device polls status from the edge, and
+	// mark the account as having something pending so the long-poll can skip D1
+	// when there is nothing to raise. D1 stays the source of truth; KV only
+	// mirrors it. Best-effort.
+	if (hasKv(env)) {
+		await kvPut(env, approvalKey(id),
+			{ id, user_id: userId, status: "pending", expires_at: expiresAt, user_agent: d.user_agent },
+			APPROVAL_TTL);
+		await kvPut(env, userPendingKey(userId), { at: now }, APPROVAL_TTL);
+	}
 	return { id, expiresIn: APPROVAL_TTL, client: d };
 }
 
 /** Status for the waiting device. Returns null for an unknown id. */
 export async function getApproval(env, id) {
+	const now = Math.floor(Date.now() / 1000);
+	// KV first (cacheTtl:0 so a fresh decision is seen at once). This is the
+	// endpoint the waiting device polls every second, so serving it from the
+	// edge is the point.
+	if (hasKv(env)) {
+		const cached = await kvGet(env, approvalKey(id), { cacheTtl: 0 });
+		if (cached) {
+			if (cached.status === "pending" && cached.expires_at < now) return { ...cached, status: "expired" };
+			return cached;
+		}
+	}
 	const row = await env.DB.prepare(
 		`SELECT id, user_id, status, created_at, expires_at, user_agent FROM login_approvals WHERE id = ?`,
 	).bind(id).first();
 	if (!row) return null;
-	if (row.status === "pending" && row.expires_at < Math.floor(Date.now() / 1000)) {
+	if (row.status === "pending" && row.expires_at < now) {
 		return { ...row, status: "expired" };
 	}
 	return row;
@@ -430,6 +453,17 @@ export async function getApproval(env, id) {
 /** Pending requests this account should be asked about. */
 export async function listPendingApprovals(env, userId) {
 	const now = Math.floor(Date.now() / 1000);
+	// Fast path for the long-poll: if KV is bound and there is no "pending"
+	// marker for this account, there is nothing to raise, so skip the D1 read
+	// entirely. The marker is set on createApproval and cleared once every
+	// request is answered. A missing marker can only be a false negative for
+	// the ~second it takes KV to propagate a just-created one, which the
+	// once-a-second poll picks up on its next pass; it can never surface a
+	// stale approval, because the actual rows still come from D1 below.
+	if (hasKv(env)) {
+		const marker = await kvGet(env, userPendingKey(userId), { cacheTtl: 0 });
+		if (!marker) return [];
+	}
 	const res = await env.DB.prepare(
 		`SELECT id, device, os, browser, ip, location, created_at, expires_at
 		   FROM login_approvals
@@ -437,7 +471,13 @@ export async function listPendingApprovals(env, userId) {
 		  ORDER BY created_at DESC
 		  LIMIT 5`,
 	).bind(userId, now).all();
-	return (res && res.results) || [];
+	const rows = (res && res.results) || [];
+	// Keep the marker honest: if D1 says nothing is pending, drop it so future
+	// polls take the fast path again.
+	if (hasKv(env) && rows.length === 0) {
+		await kvDelete(env, userPendingKey(userId));
+	}
+	return rows;
 }
 
 /**
@@ -451,7 +491,21 @@ export async function decideApproval(env, id, userId, approve, sessionId) {
 		    SET status = ?, decided_at = ?, decided_by = ?
 		  WHERE id = ? AND user_id = ? AND status = 'pending' AND expires_at > ?`,
 	).bind(approve ? "approved" : "denied", now, sessionId || "", id, userId, now).run();
-	return !!(res && res.meta && res.meta.changes);
+	const changed = !!(res && res.meta && res.meta.changes);
+
+	// Mirror the decision into KV so the waiting device's poll sees it from the
+	// edge, and refresh the per-account pending marker from D1 (there may be
+	// other requests still waiting). D1 remains the authority.
+	if (changed && hasKv(env)) {
+		const cached = await kvGet(env, approvalKey(id), { cacheTtl: 0 });
+		if (cached) {
+			await kvPut(env, approvalKey(id), { ...cached, status: approve ? "approved" : "denied" },
+				Math.max(1, (cached.expires_at || now) - now));
+		}
+		// Recompute the marker: dropped when this was the last pending request.
+		await listPendingApprovals(env, userId);
+	}
+	return changed;
 }
 
 /**
@@ -466,10 +520,18 @@ export async function claimApproval(env, id, request) {
 	const ua = (request.headers.get("User-Agent") || "").slice(0, 300);
 	if ((row.user_agent || "") !== ua) return null;
 
+	// The D1 UPDATE is the authority: it only succeeds if the row is still
+	// 'approved', so a stale KV "approved" can never mint a second session.
 	const claimed = await env.DB.prepare(
 		"UPDATE login_approvals SET status = 'claimed' WHERE id = ? AND status = 'approved'",
 	).bind(id).run();
 	if (!claimed || !claimed.meta || !claimed.meta.changes) return null;   // already claimed
+
+	if (hasKv(env)) {
+		const cached = await kvGet(env, approvalKey(id), { cacheTtl: 0 });
+		if (cached) await kvPut(env, approvalKey(id), { ...cached, status: "claimed" },
+			Math.max(1, (cached.expires_at || now) - now));
+	}
 
 	return env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(row.user_id).first();
 }
@@ -488,8 +550,6 @@ export async function pruneApprovals(env, userId) {
 		).bind(userId, now - 3600, now - 900).run();
 	} catch (e) { /* non-fatal */ }
 }
-
-/* ---------- rate limiting ---------- */
 
 /* ---------- rate limiting ----------
  * Login throttling is one of the two things that hit D1 on every attempt. When
@@ -650,6 +710,23 @@ async function hashCode(email, code) {
  */
 export async function issueOtp(env, email, purpose) {
 	const now = Math.floor(Date.now() / 1000);
+
+	// KV path: one record per email, expiring with the code. No pruning, and
+	// no D1 write on the busy signup/verify path.
+	if (hasKv(env)) {
+		const existing = await kvGet(env, otpKey(email), { cacheTtl: 0 });
+		if (existing && now - existing.last_sent_at < OTP_RESEND_SECONDS) {
+			return { ok: false, retryIn: OTP_RESEND_SECONDS - (now - existing.last_sent_at) };
+		}
+		const code = sixDigitCode();
+		const codeHash = await hashCode(email, code);
+		await kvPut(env, otpKey(email),
+			{ code_hash: codeHash, expires_at: now + OTP_TTL_SECONDS, attempts: 0, last_sent_at: now },
+			OTP_TTL_SECONDS);
+		await sendMail(env, otpEmail(email, code, purpose));
+		return { ok: true };
+	}
+
 	const existing = await env.DB.prepare("SELECT last_sent_at FROM email_otps WHERE email = ?").bind(email).first();
 	if (existing && now - existing.last_sent_at < OTP_RESEND_SECONDS) {
 		return { ok: false, retryIn: OTP_RESEND_SECONDS - (now - existing.last_sent_at) };
@@ -676,6 +753,29 @@ export async function issueOtp(env, email, purpose) {
 /** Validate a submitted code; on success the row is deleted. */
 export async function checkOtp(env, email, code) {
 	const now = Math.floor(Date.now() / 1000);
+
+	if (hasKv(env)) {
+		const row = await kvGet(env, otpKey(email), { cacheTtl: 0 });
+		if (!row) return { ok: false, error: "Request a new code." };
+		if (row.expires_at < now) {
+			await kvDelete(env, otpKey(email));
+			return { ok: false, error: "That code has expired. Request a new one." };
+		}
+		if (row.attempts >= OTP_MAX_ATTEMPTS) {
+			await kvDelete(env, otpKey(email));
+			return { ok: false, error: "Too many wrong attempts. Request a new code." };
+		}
+		const submitted = await hashCode(email, String(code || "").trim());
+		if (!safeEqual(submitted, row.code_hash)) {
+			// Re-store with the attempt counted, keeping the remaining lifetime.
+			const ttl = Math.max(1, row.expires_at - now);
+			await kvPut(env, otpKey(email), { ...row, attempts: row.attempts + 1 }, ttl);
+			return { ok: false, error: "Incorrect code." };
+		}
+		await kvDelete(env, otpKey(email));
+		return { ok: true };
+	}
+
 	const row = await env.DB.prepare("SELECT * FROM email_otps WHERE email = ?").bind(email).first();
 	if (!row) return { ok: false, error: "Request a new code." };
 	if (row.expires_at < now) {

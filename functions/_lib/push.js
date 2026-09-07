@@ -14,6 +14,13 @@
 const JWT_TTL = 12 * 3600;             // push services reject anything longer than 24h
 const SUBJECT = "mailto:admin@abinash-songs.pages.dev";
 
+// Cache the per-account endpoint list in KV so waking an account's other
+// devices does not read D1 first. Invalidated on any change; D1 stays the
+// source of truth and a miss (or no binding) just runs the query.
+import { kvGet, kvPut, kvDelete, hasKv, pushListKey } from "./kvstore.js";
+
+const PUSH_LIST_TTL = 3600;            // seconds a cached endpoint list is trusted
+
 const enc = new TextEncoder();
 
 function b64url(bytes) {
@@ -117,18 +124,30 @@ export async function saveSubscription(env, userId, sub, request) {
 		now,
 		now,
 	).run();
+	// The account's endpoint set changed: drop the cache so the next push
+	// re-reads it from D1.
+	await kvDelete(env, pushListKey(userId));
 }
 
 export async function deleteSubscription(env, userId, endpoint) {
 	await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?")
 		.bind(endpoint, userId).run();
+	await kvDelete(env, pushListKey(userId));
 }
 
 export async function listSubscriptions(env, userId) {
+	// KV cache first, so the login "wake my other devices" path does not read
+	// D1. A miss falls through to D1 and warms the cache.
+	if (hasKv(env)) {
+		const cached = await kvGet(env, pushListKey(userId), { cacheTtl: 60 });
+		if (cached && Array.isArray(cached)) return cached;
+	}
 	const res = await env.DB.prepare(
 		"SELECT endpoint FROM push_subscriptions WHERE user_id = ? LIMIT 20",
 	).bind(userId).all();
-	return ((res && res.results) || []).map((r) => r.endpoint);
+	const endpoints = ((res && res.results) || []).map((r) => r.endpoint);
+	if (hasKv(env)) await kvPut(env, pushListKey(userId), endpoints, PUSH_LIST_TTL);
+	return endpoints;
 }
 
 /**
@@ -152,6 +171,9 @@ export async function pushToUser(env, userId, { topic } = {}) {
 		}
 		return state;
 	}));
+
+	// A dropped endpoint changed the set: invalidate the cached list.
+	if (results.some((r) => r === "gone")) await kvDelete(env, pushListKey(userId));
 
 	return {
 		sent: results.filter((r) => r === "sent").length,

@@ -146,10 +146,14 @@ of those devices has to approve it.
 
 Cost of the long poll: `wait.js` checks the table once a second for up to 25
 seconds, so a visible tab costs roughly one D1 read per second - more than the
-old poll, which is the price of the latency. `WINDOW` and `STEP` at the top of
-that file are the knobs. For a large number of concurrent listeners the right
-next step is a Durable Object per account, pushing over a WebSocket with no
-polling at all; that needs a DO binding on the Pages project.
+old poll, which is the price of the latency. When the `CACHE` KV namespace is
+bound this drops sharply: the poll first checks a per-account KV marker and only
+touches D1 while a sign-in is actually pending, so an idle listener costs a KV
+read (edge-local, effectively free at scale) rather than a D1 read every second.
+`WINDOW` and `STEP` at the top of that file are the knobs. For a large number of
+concurrent listeners the right next step is a Durable Object per account, pushing
+over a WebSocket with no polling at all; that needs a DO binding on the Pages
+project.
 
 Note that a phone only shows these once the site is added to the home screen on
 iOS (Safari requires an installed PWA for Web Push); on Android Chrome a normal
@@ -235,14 +239,21 @@ it is bound, and fall back to D1 unchanged when it is not:
 | --- | --- | --- |
 | Session poll (`/api/auth/me`, `/api/me/*`) | one D1 read per poll, per open tab | resolved from KV for up to 60s per session; D1 read only on a cache miss |
 | Login rate-limit (`login_attempts`) | a D1 read + write per attempt | read/write against KV, which expires the rows on its own |
+| Approval status poll (`/api/auth/approval?id=`) | one D1 read every second, per waiting device | read from KV (written through on decide/claim); D1 only on a miss |
+| Approval long-poll (`/api/me/approvals/wait`) | one D1 read every second, per open tab | a per-account KV marker lets it skip D1 entirely when nothing is pending |
+| Email OTP (`email_otps`) | a D1 read + write per issue/verify | stored in KV, expiring with the 10-minute code |
+| Push endpoint list (`push_subscriptions`) | one D1 read per "wake my other devices" | cached in KV, invalidated when a device subscribes, unsubscribes or is pruned |
 
 The session cache is short-lived (60s) and is deleted outright on logout and on
 "sign this device out", so a revoked session stops validating at once rather
-than lingering for the TTL. D1 remains the source of truth: the cache only ever
-holds a copy of a row D1 already returned, and a KV miss or a missing binding
-just runs the original query. Nothing new has to be provisioned — it reuses the
-`CACHE` namespace below — and with no binding the behaviour is exactly as before,
-just with every poll landing on D1 again.
+than lingering for the TTL. Login approvals keep D1 as the authority: the KV
+copy only lets the waiting device *read* a decision from the edge, while
+claiming a session still runs a guarded D1 update (`status = 'approved'`), so a
+stale mirror can never mint a second session. D1 remains the source of truth
+throughout: the caches only ever hold copies of rows D1 already returned, and a
+KV miss or a missing binding just runs the original query. Nothing new has to be
+provisioned — it reuses the `CACHE` namespace below — and with no binding the
+behaviour is exactly as before, just with every poll landing on D1 again.
 
 Still worth doing, but not possible while the site is only on `pages.dev` with no
 zone: WAF rate limiting rules (per-IP, on `/song/*`, `/artist/*` and
@@ -263,7 +274,7 @@ matches a commit.
 | --- | --- |
 | `functions/_lib/saavn.js` | JioSaavn client: search, song, playlist, album, lyrics |
 | `functions/_lib/des.js` | DES-ECB decryption of `encrypted_media_url` (WebCrypto has no DES) |
-| `functions/_lib/kvstore.js` | JSON-over-KV helper; caches sessions and login throttling on the `CACHE` namespace, no-op without it |
+| `functions/_lib/kvstore.js` | JSON-over-KV helper; keeps sessions, throttling, OTPs, approval status and push lists off D1 via the `CACHE` namespace, no-op without it |
 | `functions/_middleware.js` | 404s the project's own plumbing (`/functions/*`, `node_modules`, …) |
 | `_routes.json` | Only API paths invoke Functions; static requests stay free |
 | `_headers` | Security headers, long cache for assets, `no-cache` for HTML |
