@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Push. Xcode rewrites this to "production" for an App Store / TestFlight
+	     archive; a build run from Xcode uses the sandbox APNs host, which is why
+	     the app tells the server which environment its token came from. -->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

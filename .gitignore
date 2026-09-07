@@ -5,3 +5,8 @@ android/build/
 android/dist/
 android/.gradle/
 android/cloudsongs.keystore
+ios/build/
+ios/DerivedData/
+ios/CloudSongs.xcodeproj/xcuserdata/
+ios/CloudSongs.xcodeproj/project.xcworkspace/
+*.xcuserstate

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Cloud Songs</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Cloud Songs</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<!-- First iOS release. The Android build stays at versionName 1.2.1 /
+	     versionCode 18 until its next APK; the two are versioned per store. -->
+	<key>CFBundleShortVersionString</key>
+	<string>1.3.0</string>
+	<key>CFBundleVersion</key>
+	<string>19</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+
+	<!-- Audio keeps playing when the app leaves the screen or the phone is
+	     locked; this is the iOS counterpart of the Android foreground service.
+	     remote-notification lets a content-free approval push wake us. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>remote-notification</string>
+	</array>
+
+	<!-- No storyboard: the launch screen is just the site's own background
+	     colour, so the app never flashes white before the web view paints. -->
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+
+	<!-- The site is dark; force the light-on-dark status bar and never let the
+	     system paint a white background behind the web view. -->
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleLightContent</string>
+
+	<!-- Everything is https, so no ATS exception is needed. Declared explicitly
+	     so a future edit has to be deliberate. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+	</dict>
+
+	<!-- The profile-photo picker (<input type="file">) is handled by WebKit; it
+	     still needs these strings before iOS will show the sheet. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose a photo to use as your Cloud Songs profile picture.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save images from Cloud Songs to your photo library.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo to use as your Cloud Songs profile picture.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Not used by Cloud Songs; required because the camera sheet can record video.</string>
+
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+</dict>
+</plist>

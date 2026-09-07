@@ -21,7 +21,11 @@ Live: https://abinash-songs.pages.dev
 | `schema.sql` | D1 schema for `users`, `sessions`, `login_approvals`, `push_subscriptions` and `login_attempts` |
 | `sw.js` | Service worker: installability, and the notifications a phone shows (including Web Push) |
 | `functions/_lib/push.js` | Web Push: VAPID signing and payload-free nudges to an account's devices |
+| `functions/_lib/fcm.js` | Firebase Cloud Messaging, for the installed Android app |
+| `functions/_lib/apns.js` | Apple Push Notification service, for the installed iOS app |
 | `js/catalogue.js` | Per-language playlist catalogue used by the player |
+| `android/` | The Android app: a WebView shell with a media notification and FCM push |
+| `ios/` | The iOS app: the same shell in Swift, with lock-screen controls and APNs push |
 | `_routes.json`, `_headers`, `.assetsignore` | Pages routing, headers and upload rules |
 
 ## Develop

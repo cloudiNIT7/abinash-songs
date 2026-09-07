@@ -1,0 +1,57 @@
+// Regenerate the Xcode project from scratch:
+//
+//   brew install xcodegen
+//   cd ios && xcodegen generate
+//
+// The checked-in CloudSongs.xcodeproj is the same thing, hand-written so the
+// repo can be opened in Xcode with nothing else installed. Use this file if you
+// ever need to add targets, packages or build settings without editing a
+// pbxproj by hand.
+name: CloudSongs
+options:
+  bundleIdPrefix: com.cloudsongs
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "15.0"
+
+settings:
+  base:
+    MARKETING_VERSION: "1.3.0"
+    CURRENT_PROJECT_VERSION: "19"
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_EMIT_LOC_STRINGS: NO
+
+targets:
+  CloudSongs:
+    type: application
+    platform: iOS
+    sources:
+      - path: CloudSongs
+    settings:
+      base:
+        PRODUCT_NAME: Cloud Songs
+        PRODUCT_BUNDLE_IDENTIFIER: com.cloudsongs.app
+        INFOPLIST_FILE: CloudSongs/Info.plist
+        CODE_SIGN_ENTITLEMENTS: CloudSongs/CloudSongs.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: NO
+    dependencies:
+      - target: CloudSongsNotify
+        embed: true
+
+  CloudSongsNotify:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: CloudSongsNotify
+    settings:
+      base:
+        PRODUCT_NAME: CloudSongsNotify
+        PRODUCT_BUNDLE_IDENTIFIER: com.cloudsongs.app.notify
+        INFOPLIST_FILE: CloudSongsNotify/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: NO

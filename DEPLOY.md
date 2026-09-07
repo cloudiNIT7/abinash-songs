@@ -71,6 +71,9 @@ cannot be forged from devtools the way the old localStorage gate could.
 | `GET /api/me/fcm` | Whether native FCM is available, and how many tokens are stored |
 | `POST /api/me/fcm` | `{token}` stores this Android device's FCM token |
 | `POST /api/me/fcm/remove` | `{token}` forgets it again |
+| `GET /api/me/apns` | Whether APNs is available, and how many iOS devices are stored |
+| `POST /api/me/apns` | `{token, env}` stores this iOS device's APNs token |
+| `POST /api/me/apns/remove` | `{token}` forgets it again |
 
 Bindings on the Pages project (production and preview):
 
@@ -107,11 +110,13 @@ npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0005_session
 npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0006_login_approvals.sql
 npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0007_push_subscriptions.sql
 npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0008_fcm_tokens.sql
+npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0009_apns_tokens.sql
 ```
 
 `0005_sessions.sql` backs the Devices list, `0006_login_approvals.sql` the
 sign-in approvals, `0007_push_subscriptions.sql` the browser phone notifications,
-and `0008_fcm_tokens.sql` the native Android (FCM) tokens. Until each is applied
+`0008_fcm_tokens.sql` the native Android (FCM) tokens, and
+`0009_apns_tokens.sql` the native iOS (APNs) tokens. Until each is applied
 the matching feature simply stays out of the way: the device list reports that
 history isn't available, a correct password signs in directly as before, and
 nothing is pushed.
@@ -182,6 +187,54 @@ Cloud Messaging instead:
   `android/`; it holds only the public Android config, not a secret). Build the
   APK with Gradle so the `firebase-messaging` SDK is included - see
   `android/README.md`.
+
+### The installed iOS app (APNs)
+
+`WKWebView` has no Web Push either, and iOS Safari only offers it to an installed
+PWA, so the native app in `ios/` uses APNs. There is no Firebase in the middle:
+iOS hands the app a device token, and the Worker signs its own provider token and
+posts to Apple.
+
+- The app registers its token with `POST /api/me/apns`
+  (`window.CloudSongsAPNs.register`, injected by `BridgeScript.swift` and called
+  from `PushRegistration`), stored in the `apns_tokens` table together with the
+  environment the token came from.
+- On a parked sign-in, `pushToUser` sends the alert to those tokens through
+  `functions/_lib/apns.js`, in parallel with Web Push and FCM. The wording is
+  deliberately generic - no device, city or IP travels in the push - and the
+  details are only read from `/api/me/approvals` once the app is opened.
+  Suggestions go the same way, with the album art attached on the device by the
+  `CloudSongsNotify` extension.
+- Sending needs three secrets, from the Apple developer portal (Certificates,
+  Identifiers & Profiles → Keys → **+** → Apple Push Notifications service):
+
+  ```sh
+  cat AuthKey_ABCDE12345.p8 | npx wrangler pages secret put APNS_KEY --project-name abinash-songs
+  echo 'ABCDE12345' | npx wrangler pages secret put APNS_KEY_ID --project-name abinash-songs
+  echo 'YOURTEAMID' | npx wrangler pages secret put APNS_TEAM_ID --project-name abinash-songs
+  # optional, defaults to com.cloudsongs.app
+  echo 'com.cloudsongs.app' | npx wrangler pages secret put APNS_BUNDLE_ID --project-name abinash-songs
+  ```
+
+  The `.p8` is downloadable once and works for every app under the team. Without
+  it, `apnsAvailable()` is false: `/api/me/apns` reports `available:false`, no
+  token is stored, nothing is sent, and every other path carries on unchanged.
+- The provider token is an ES256 JWT valid for an hour, cached in the `CACHE` KV
+  namespace, so most sends skip the signing - the same arrangement as the VAPID
+  and FCM paths.
+- A build run from Xcode gets a **sandbox** token and TestFlight / App Store
+  builds get **production** ones; the app reports which, and a token Apple
+  rejects as `BadDeviceToken` is retried against the other host, so a wrong guess
+  is recoverable. `410 Unregistered` deletes the row.
+- Push Notifications is a paid-developer-account capability. Without one the app
+  still builds and plays music; only the alerts are missing. See
+  `ios/README.md`.
+- The plumbing can be exercised without a device or an Apple account:
+
+  ```sh
+  node ios/tools/apns-selftest.mjs     # provider JWT + request shape
+  node ios/tools/push-selftest.mjs     # token store + fan-out
+  ```
 
 Cost of the long poll: `wait.js` checks the table once a second for up to 25
 seconds, so a visible tab costs roughly one D1 read per second - more than the

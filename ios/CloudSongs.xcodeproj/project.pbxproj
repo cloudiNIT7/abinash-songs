@@ -1,0 +1,421 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		10000000000000000000021A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011A /* AppDelegate.swift */; };
+		10000000000000000000021B /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011B /* Config.swift */; };
+		10000000000000000000021C /* BridgeScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011C /* BridgeScript.swift */; };
+		10000000000000000000021D /* PlayerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011D /* PlayerViewController.swift */; };
+		10000000000000000000021E /* NowPlayingCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011E /* NowPlayingCenter.swift */; };
+		10000000000000000000021F /* Notifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011F /* Notifications.swift */; };
+		100000000000000000000220 /* PushRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000120 /* PushRegistration.swift */; };
+		100000000000000000000221 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000121 /* Assets.xcassets */; };
+		100000000000000000000222 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000122 /* NotificationService.swift */; };
+		100000000000000000000223 /* CloudSongsNotify.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000A9 /* CloudSongsNotify.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		1000000000000000000000D2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1000000000000000000000A1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1000000000000000000000A7;
+			remoteInfo = CloudSongsNotify;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		1000000000000000000000C4 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				100000000000000000000223 /* CloudSongsNotify.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		1000000000000000000000A8 /* Cloud Songs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Cloud Songs.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		1000000000000000000000A9 /* CloudSongsNotify.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CloudSongsNotify.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		10000000000000000000011A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		10000000000000000000011B /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		10000000000000000000011C /* BridgeScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeScript.swift; sourceTree = "<group>"; };
+		10000000000000000000011D /* PlayerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerViewController.swift; sourceTree = "<group>"; };
+		10000000000000000000011E /* NowPlayingCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingCenter.swift; sourceTree = "<group>"; };
+		10000000000000000000011F /* Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifications.swift; sourceTree = "<group>"; };
+		100000000000000000000120 /* PushRegistration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushRegistration.swift; sourceTree = "<group>"; };
+		100000000000000000000121 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		100000000000000000000122 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		100000000000000000000123 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		100000000000000000000124 /* CloudSongs.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CloudSongs.entitlements; sourceTree = "<group>"; };
+		100000000000000000000125 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1000000000000000000000C3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1000000000000000000000C6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1000000000000000000000A2 = {
+			isa = PBXGroup;
+			children = (
+				1000000000000000000000A4 /* CloudSongs */,
+				1000000000000000000000A5 /* CloudSongsNotify */,
+				1000000000000000000000A3 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		1000000000000000000000A3 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1000000000000000000000A8 /* Cloud Songs.app */,
+				1000000000000000000000A9 /* CloudSongsNotify.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		1000000000000000000000A4 /* CloudSongs */ = {
+			isa = PBXGroup;
+			children = (
+				10000000000000000000011A /* AppDelegate.swift */,
+				10000000000000000000011D /* PlayerViewController.swift */,
+				10000000000000000000011C /* BridgeScript.swift */,
+				10000000000000000000011E /* NowPlayingCenter.swift */,
+				10000000000000000000011F /* Notifications.swift */,
+				100000000000000000000120 /* PushRegistration.swift */,
+				10000000000000000000011B /* Config.swift */,
+				100000000000000000000121 /* Assets.xcassets */,
+				100000000000000000000123 /* Info.plist */,
+				100000000000000000000124 /* CloudSongs.entitlements */,
+			);
+			path = CloudSongs;
+			sourceTree = "<group>";
+		};
+		1000000000000000000000A5 /* CloudSongsNotify */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000122 /* NotificationService.swift */,
+				100000000000000000000125 /* Info.plist */,
+			);
+			path = CloudSongsNotify;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1000000000000000000000A6 /* CloudSongs */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1000000000000000000000B1 /* Build configuration list for PBXNativeTarget "CloudSongs" */;
+			buildPhases = (
+				1000000000000000000000C1 /* Sources */,
+				1000000000000000000000C3 /* Frameworks */,
+				1000000000000000000000C2 /* Resources */,
+				1000000000000000000000C4 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1000000000000000000000D1 /* PBXTargetDependency */,
+			);
+			name = CloudSongs;
+			productName = CloudSongs;
+			productReference = 1000000000000000000000A8 /* Cloud Songs.app */;
+			productType = "com.apple.product-type.application";
+		};
+		1000000000000000000000A7 /* CloudSongsNotify */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1000000000000000000000B2 /* Build configuration list for PBXNativeTarget "CloudSongsNotify" */;
+			buildPhases = (
+				1000000000000000000000C5 /* Sources */,
+				1000000000000000000000C6 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CloudSongsNotify;
+			productName = CloudSongsNotify;
+			productReference = 1000000000000000000000A9 /* CloudSongsNotify.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1000000000000000000000A1 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					1000000000000000000000A6 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					1000000000000000000000A7 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 1000000000000000000000B3 /* Build configuration list for PBXProject "CloudSongs" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 1000000000000000000000A2;
+			productRefGroup = 1000000000000000000000A3 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				1000000000000000000000A6 /* CloudSongs */,
+				1000000000000000000000A7 /* CloudSongsNotify */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1000000000000000000000C2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000221 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1000000000000000000000C1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				10000000000000000000021A /* AppDelegate.swift in Sources */,
+				10000000000000000000021D /* PlayerViewController.swift in Sources */,
+				10000000000000000000021C /* BridgeScript.swift in Sources */,
+				10000000000000000000021E /* NowPlayingCenter.swift in Sources */,
+				10000000000000000000021F /* Notifications.swift in Sources */,
+				100000000000000000000220 /* PushRegistration.swift in Sources */,
+				10000000000000000000021B /* Config.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1000000000000000000000C5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000222 /* NotificationService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1000000000000000000000D1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1000000000000000000000A7 /* CloudSongsNotify */;
+			targetProxy = 1000000000000000000000D2 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1000000000000000000000B4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 19;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.3.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		1000000000000000000000B5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 19;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.3.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		1000000000000000000000B6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CloudSongs/CloudSongs.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 19;
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CloudSongs/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Cloud Songs";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.3.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cloudsongs.app;
+				PRODUCT_NAME = "Cloud Songs";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		1000000000000000000000B7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CloudSongs/CloudSongs.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 19;
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CloudSongs/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Cloud Songs";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.3.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cloudsongs.app;
+				PRODUCT_NAME = "Cloud Songs";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		1000000000000000000000B8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 19;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CloudSongsNotify/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.3.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cloudsongs.app.notify;
+				PRODUCT_NAME = CloudSongsNotify;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		1000000000000000000000B9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 19;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CloudSongsNotify/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.3.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cloudsongs.app.notify;
+				PRODUCT_NAME = CloudSongsNotify;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1000000000000000000000B1 /* Build configuration list for PBXNativeTarget "CloudSongs" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1000000000000000000000B6 /* Debug */,
+				1000000000000000000000B7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1000000000000000000000B2 /* Build configuration list for PBXNativeTarget "CloudSongsNotify" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1000000000000000000000B8 /* Debug */,
+				1000000000000000000000B9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1000000000000000000000B3 /* Build configuration list for PBXProject "CloudSongs" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1000000000000000000000B4 /* Debug */,
+				1000000000000000000000B5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 1000000000000000000000A1 /* Project object */;
+}

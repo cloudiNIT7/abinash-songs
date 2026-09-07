@@ -103,3 +103,6 @@ export function pushListKey(userId) { return "auth:push:" + userId; }
 
 /** The list of native FCM device tokens for an account. */
 export function fcmListKey(userId) { return "auth:fcm:" + userId; }
+
+/** The list of native APNs device tokens (the iOS app) for an account. */
+export function apnsListKey(userId) { return "auth:apns:" + userId; }
