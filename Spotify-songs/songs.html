@@ -305,6 +305,63 @@
 		   =================================================================== */
 		:root { --sp-green:#1DB954; --sp-green-h:#1ed760; }
 
+		/* ---- Avatar crop modal (pan/zoom before upload) ---- */
+		.cropx_overlay {
+			position:fixed; inset:0; z-index:9999; display:none;
+			align-items:center; justify-content:center; padding:16px; box-sizing:border-box;
+			background:rgba(0,0,0,.7); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+		}
+		.cropx_overlay.is-open { display:flex; }
+		.cropx_dialog {
+			width:100%; max-width:380px; box-sizing:border-box;
+			background:#181818; border:1px solid rgba(255,255,255,.12); border-radius:18px;
+			padding:22px 22px 20px; box-shadow:0 30px 70px -20px rgba(0,0,0,.85);
+			animation:cropx_rise .26s cubic-bezier(.2,.7,.3,1) both;
+		}
+		@keyframes cropx_rise { from{opacity:0; transform:translateY(12px) scale(.985)} to{opacity:1; transform:none} }
+		.cropx_dialog h2 { color:#fff; font-size:18px; font-weight:800; margin:0 0 4px; text-align:center; }
+		.cropx_dialog p { color:#a7a7a7; font-size:13px; text-align:center; margin:0 0 16px; }
+		.cropx_stage {
+			position:relative; width:100%; aspect-ratio:1/1; margin:0 auto 16px;
+			border-radius:12px; overflow:hidden; background:#000;
+			touch-action:none; cursor:grab; -webkit-user-select:none; user-select:none;
+		}
+		.cropx_stage:active { cursor:grabbing; }
+		.cropx_stage canvas { display:block; width:100%; height:100%; }
+		.cropx_ring {
+			position:absolute; inset:0; pointer-events:none;
+			box-shadow:0 0 0 9999px rgba(0,0,0,.5); border-radius:50%;
+			border:2px solid rgba(255,255,255,.85);
+		}
+		.cropx_zoom { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
+		.cropx_zoom svg { width:20px; height:20px; fill:#a7a7a7; flex-shrink:0; }
+		.cropx_zoom input[type="range"] {
+			flex:1; -webkit-appearance:none; appearance:none; height:4px; border-radius:999px;
+			background:rgba(255,255,255,.18); outline:none; cursor:pointer;
+		}
+		.cropx_zoom input[type="range"]::-webkit-slider-thumb {
+			-webkit-appearance:none; appearance:none; width:18px; height:18px; border-radius:50%;
+			background:var(--sp-green); border:2px solid #fff; cursor:pointer;
+		}
+		.cropx_zoom input[type="range"]::-moz-range-thumb {
+			width:18px; height:18px; border:2px solid #fff; border-radius:50%;
+			background:var(--sp-green); cursor:pointer;
+		}
+		.cropx_actions { display:flex; gap:10px; }
+		.cropx_btn {
+			flex:1; border-radius:999px; padding:12px 0; font-size:14px; font-weight:700;
+			font-family:inherit; cursor:pointer; transition:filter .16s ease, background .16s ease, transform .16s ease;
+		}
+		.cropx_btn_cancel { background:rgba(255,255,255,.08); color:#fff; border:1px solid rgba(255,255,255,.2); }
+		.cropx_btn_cancel:hover { background:rgba(255,255,255,.16); }
+		.cropx_btn_save {
+			background:linear-gradient(180deg, var(--sp-green-h), var(--sp-green)); color:#06240f; border:none;
+			box-shadow:0 10px 24px -12px rgba(29,185,84,.8);
+		}
+		.cropx_btn_save:hover { filter:brightness(1.06); transform:translateY(-1px); }
+		.cropx_btn_save:disabled { opacity:.55; cursor:default; filter:none; transform:none; }
+		@media (prefers-reduced-motion: reduce) { .cropx_dialog { animation:none; } }
+
 		body { background:#0a0a0a; }
 
 		@keyframes fadeUp { from{opacity:0; transform:translateY(18px)} to{opacity:1; transform:translateY(0)} }
@@ -5077,38 +5134,169 @@
 			});
 		}
 
-		/* ---- Avatar upload: resize client-side to a small square, then save ---- */
+		/* ---- Avatar upload: open an interactive cropper, then save ---- */
 		function handleAvatarFile(file) {
 			if (!file) return;
+			if (!/^image\//.test(file.type || "")) {
+				if (window.notify) window.notify("Please choose an image file", "error");
+				return;
+			}
 			var reader = new FileReader();
 			reader.onload = function () {
 				var img = new Image();
-				img.onload = function () {
-					var size = 256;
-					var canvas = document.createElement("canvas");
-					canvas.width = canvas.height = size;
-					var ctx = canvas.getContext("2d");
-					var side = Math.min(img.width, img.height);   // center-crop to a square
-					var sx = (img.width - side) / 2, sy = (img.height - side) / 2;
-					ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
-					var dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-					apiPost("/api/me/avatar", { dataUrl: dataUrl }).then(function (d) {
-						if (d && d.ok) {
-							var u = (typeof getCurrentUserObj === "function" && getCurrentUserObj()) || {};
-							u.avatar_url = dataUrl;
-							var nm = u.display_name || u.username || "";
-							// Repaint hero, header chip, dropdown and editor preview at once.
-							pfPaintAvatars(dataUrl, u.avatar_color || "#1DB954", (nm.charAt(0) || "?").toUpperCase());
-							if (window.notify) window.notify("Profile photo updated", "info");
-						} else if (window.notify) {
-							window.notify((d && d.error) || "Couldn't save picture", "error");
-						}
-					});
-				};
+				img.onload = function () { cropxOpen(img); };
+				img.onerror = function () { if (window.notify) window.notify("That image couldn't be read", "error"); };
 				img.src = reader.result;
 			};
+			reader.onerror = function () { if (window.notify) window.notify("That file couldn't be read", "error"); };
 			reader.readAsDataURL(file);
 		}
+
+		/* ---- Interactive avatar cropper ----
+		 * Square stage shows the picked image; drag to pan, slider/pinch/wheel
+		 * to zoom, circular ring marks the crop. Save exports a 256x256 JPEG
+		 * data URL to /api/me/avatar — the same shape as before. */
+		(function () {
+			var OUTPUT = 256;
+			var cImg = null, stagePx = 0, baseScale = 1, cZoom = 1, offX = 0, offY = 0;
+			var overlay, stage, canvas, zoomEl, cancelBtn, saveBtn, ctx;
+			var dpr = Math.min(window.devicePixelRatio || 1, 2);
+			var dragging = false, lastX = 0, lastY = 0;
+			var pointers = {}, pointerCount = 0, pinchDist = 0, pinchZoom = 1;
+
+			function els() {
+				if (overlay) return true;
+				overlay = $id("cropxOverlay"); stage = $id("cropxStage");
+				canvas = $id("cropxCanvas"); zoomEl = $id("cropxZoom");
+				cancelBtn = $id("cropxCancel"); saveBtn = $id("cropxSave");
+				if (!overlay || !canvas) return false;
+				ctx = canvas.getContext("2d");
+				wire();
+				return true;
+			}
+
+			function clampOffsets() {
+				var scale = baseScale * cZoom;
+				var exX = Math.max(0, (cImg.width * scale - stagePx) / 2);
+				var exY = Math.max(0, (cImg.height * scale - stagePx) / 2);
+				offX = Math.max(-exX, Math.min(exX, offX));
+				offY = Math.max(-exY, Math.min(exY, offY));
+			}
+
+			function draw() {
+				if (!cImg) return;
+				var scale = baseScale * cZoom, w = cImg.width * scale, h = cImg.height * scale;
+				clampOffsets();
+				ctx.clearRect(0, 0, canvas.width, canvas.height);
+				ctx.save();
+				ctx.scale(dpr, dpr);
+				var cx = stagePx / 2 + offX, cy = stagePx / 2 + offY;
+				ctx.drawImage(cImg, cx - w / 2, cy - h / 2, w, h);
+				ctx.restore();
+			}
+
+			function pointerPos(e) { return { x: e.clientX, y: e.clientY }; }
+
+			function endPointer(e) {
+				if (pointers[e.pointerId]) { delete pointers[e.pointerId]; pointerCount--; }
+				if (pointerCount < 2) pinchDist = 0;
+				if (pointerCount <= 0) { dragging = false; pointerCount = 0; }
+			}
+
+			function wire() {
+				zoomEl.addEventListener("input", function () { cZoom = parseFloat(zoomEl.value) || 1; draw(); });
+
+				stage.addEventListener("pointerdown", function (e) {
+					try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+					pointers[e.pointerId] = pointerPos(e); pointerCount++;
+					if (pointerCount === 1) { dragging = true; lastX = e.clientX; lastY = e.clientY; }
+					else if (pointerCount === 2) {
+						var k = Object.keys(pointers), a = pointers[k[0]], b = pointers[k[1]];
+						pinchDist = Math.hypot(a.x - b.x, a.y - b.y) || 1; pinchZoom = cZoom;
+					}
+				});
+				stage.addEventListener("pointermove", function (e) {
+					if (!pointers[e.pointerId]) return;
+					pointers[e.pointerId] = pointerPos(e);
+					if (pointerCount >= 2) {
+						var k = Object.keys(pointers), a = pointers[k[0]], b = pointers[k[1]];
+						var d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+						cZoom = Math.max(1, Math.min(3, pinchZoom * (d / pinchDist)));
+						zoomEl.value = String(cZoom); draw();
+					} else if (dragging) {
+						offX += e.clientX - lastX; offY += e.clientY - lastY;
+						lastX = e.clientX; lastY = e.clientY; draw();
+					}
+				});
+				stage.addEventListener("pointerup", endPointer);
+				stage.addEventListener("pointercancel", endPointer);
+				stage.addEventListener("wheel", function (e) {
+					e.preventDefault();
+					cZoom = Math.max(1, Math.min(3, cZoom - e.deltaY * 0.0015));
+					zoomEl.value = String(cZoom); draw();
+				}, { passive: false });
+
+				cancelBtn.addEventListener("click", cropxClose);
+				overlay.addEventListener("click", function (e) { if (e.target === overlay) cropxClose(); });
+				document.addEventListener("keydown", function (e) {
+					if (e.key === "Escape" && overlay.classList.contains("is-open")) cropxClose();
+				});
+				saveBtn.addEventListener("click", cropxSave);
+			}
+
+			window.cropxOpen = function (img) {
+				if (!els()) return;
+				cImg = img;
+				stagePx = stage.clientWidth || 300;
+				canvas.width = Math.round(stagePx * dpr);
+				canvas.height = Math.round(stagePx * dpr);
+				canvas.style.width = stagePx + "px";
+				canvas.style.height = stagePx + "px";
+				baseScale = Math.max(stagePx / img.width, stagePx / img.height);  // cover
+				cZoom = 1; offX = offY = 0; zoomEl.value = "1";
+				draw();
+				overlay.classList.add("is-open");
+				saveBtn.focus();
+			};
+
+			function cropxClose() { if (overlay) overlay.classList.remove("is-open"); cImg = null; }
+			window.cropxClose = cropxClose;
+
+			function cropxSave() {
+				if (!cImg) return;
+				var scale = baseScale * cZoom, w = cImg.width * scale, h = cImg.height * scale;
+				var cx = stagePx / 2 + offX, cy = stagePx / 2 + offY;
+				var left = cx - w / 2, top = cy - h / 2;
+				var sx = (0 - left) / scale, sy = (0 - top) / scale, sSize = stagePx / scale;
+
+				var out = document.createElement("canvas");
+				out.width = out.height = OUTPUT;
+				var octx = out.getContext("2d");
+				octx.imageSmoothingQuality = "high";
+				octx.drawImage(cImg, sx, sy, sSize, sSize, 0, 0, OUTPUT, OUTPUT);
+				var dataUrl = out.toDataURL("image/jpeg", 0.85);
+
+				saveBtn.disabled = true; saveBtn.textContent = "Saving...";
+				apiPost("/api/me/avatar", { dataUrl: dataUrl }).then(function (d) {
+					saveBtn.disabled = false; saveBtn.textContent = "Save photo";
+					if (d && d.ok) {
+						var u = (typeof getCurrentUserObj === "function" && getCurrentUserObj()) || {};
+						u.avatar_url = dataUrl;
+						var nm = u.display_name || u.username || "";
+						pfPaintAvatars(dataUrl, u.avatar_color || "#1DB954", (nm.charAt(0) || "?").toUpperCase());
+						if (window.notify) window.notify("Profile photo updated", "info");
+						cropxClose();
+					} else {
+						if (window.notify) window.notify((d && d.error) || "Couldn't save picture", "error");
+						cropxClose();
+					}
+				}).catch(function () {
+					saveBtn.disabled = false; saveBtn.textContent = "Save photo";
+					if (window.notify) window.notify("Can't reach the server.", "error");
+					cropxClose();
+				});
+			}
+		})();
 
 		/* ---- Add-to-playlist sheet ---- */
 		var addSheetTrack = null;
@@ -6067,6 +6255,27 @@
         </div>
       </div>
       <input type="file" id="avatarInput" accept="image/*" hidden />
+
+      <!-- Avatar crop modal: pan/zoom the picked photo before saving. -->
+      <div class="cropx_overlay" id="cropxOverlay" role="dialog" aria-modal="true" aria-labelledby="cropxTitle">
+        <div class="cropx_dialog">
+          <h2 id="cropxTitle">Position your photo</h2>
+          <p>Drag to move &bull; pinch or use the slider to zoom</p>
+          <div class="cropx_stage" id="cropxStage">
+            <canvas id="cropxCanvas"></canvas>
+            <div class="cropx_ring"></div>
+          </div>
+          <div class="cropx_zoom">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13H5v-2h14v2z"/></svg>
+            <input type="range" id="cropxZoom" min="1" max="3" step="0.01" value="1" aria-label="Zoom" />
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          </div>
+          <div class="cropx_actions">
+            <button type="button" class="cropx_btn cropx_btn_cancel" id="cropxCancel">Cancel</button>
+            <button type="button" class="cropx_btn cropx_btn_save" id="cropxSave">Save photo</button>
+          </div>
+        </div>
+      </div>
       <div class="profile-hero__meta">
         <div class="profile-eyebrow">Profile</div>
         <div class="profile-name" id="profileName"></div>
