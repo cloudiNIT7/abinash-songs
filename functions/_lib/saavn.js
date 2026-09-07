@@ -220,12 +220,29 @@ function releaseRank(song) {
  * Returns { results, total, page, count } so a caller can page through the lot;
  * `total` is what JioSaavn says is available for the query.
  */
-export async function searchSongs(query, { page = 1, count = 40, lyrics = false } = {}) {
-	const n = Math.min(Math.max(parseInt(count, 10) || 40, 1), 100);
+export async function searchSongs(query, { page = 1, count = 40, lyrics = false, pages = 3 } = {}) {
+	// Upstream caps a page at about forty rows however large `n` is, so more
+	// results have to come from more pages rather than a bigger page.
+	const n = Math.min(Math.max(parseInt(count, 10) || 40, 1), 40);
 	const p = Math.max(parseInt(page, 10) || 1, 1);
-	const url = `${ENDPOINTS.songSearch}&n=${n}&p=${p}&q=${encodeURIComponent(query)}`;
-	const res = await upstreamJson(url, 300);
-	const hits = (res && res.results) || [];
+	const spread = Math.min(Math.max(parseInt(pages, 10) || 1, 1), 5);
+
+	// Fetched together: a broad query spends much of a page on re-releases of the
+	// same recording, so one page alone leaves a short list after de-duplicating.
+	const wanted = [];
+	for (let i = 0; i < spread; i++) wanted.push(p + i);
+	const responses = await Promise.all(wanted.map((pageNo) => {
+		const url = `${ENDPOINTS.songSearch}&n=${n}&p=${pageNo}&q=${encodeURIComponent(query)}`;
+		return upstreamJson(url, 300).catch(() => null);
+	}));
+
+	const hits = [];
+	let total = 0;
+	for (const res of responses) {
+		if (!res) continue;
+		total = Math.max(total, Number(res.total) || 0);
+		for (const h of res.results || []) hits.push(h);
+	}
 
 	const songs = await Promise.all(hits.map((h) => formatSong(flattenSearchHit(h), lyrics)));
 	let results = songs.filter(Boolean);
@@ -239,9 +256,9 @@ export async function searchSongs(query, { page = 1, count = 40, lyrics = false 
 
 	return {
 		results,
-		total: Number(res && res.total) || results.length,
+		total: total || results.length,
 		page: p,
-		count: n,
+		count: results.length,
 	};
 }
 
