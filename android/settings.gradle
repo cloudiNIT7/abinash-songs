@@ -1,0 +1,20 @@
+pluginManagement {
+	repositories {
+		google()
+		mavenCentral()
+		gradlePluginPortal()
+	}
+	// Single flat module: pin the plugin versions here so build.gradle can
+	// apply them without an `apply false` root project.
+	plugins {
+		id "com.android.application" version "8.5.2"
+		id "com.google.gms.google-services" version "4.4.2"
+	}
+}
+dependencyResolutionManagement {
+	repositories {
+		google()
+		mavenCentral()
+	}
+}
+rootProject.name = "CloudSongs"

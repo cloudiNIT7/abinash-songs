@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "282282076878",
+    "project_id": "gen-lang-client-0680456004",
+    "storage_bucket": "gen-lang-client-0680456004.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:282282076878:android:34366eb60903589bcfbe9f",
+        "android_client_info": {
+          "package_name": "com.cloudsongs.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDBadY8ytEoVGSLgiwzTOSUR8gxy1he5yk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

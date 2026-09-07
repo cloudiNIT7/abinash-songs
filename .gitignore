@@ -3,4 +3,5 @@ node_modules/
 .DS_Store
 android/build/
 android/dist/
+android/.gradle/
 android/cloudsongs.keystore

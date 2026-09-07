@@ -100,3 +100,6 @@ export function userPendingKey(userId) { return "auth:pending:" + userId; }
 /** The list of push endpoints for an account, cached so a login's "wake my
  *  other devices" does not read D1 first. */
 export function pushListKey(userId) { return "auth:push:" + userId; }
+
+/** The list of native FCM device tokens for an account. */
+export function fcmListKey(userId) { return "auth:fcm:" + userId; }

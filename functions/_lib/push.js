@@ -17,7 +17,7 @@ const SUBJECT = "mailto:admin@abinash-songs.pages.dev";
 // Cache the per-account endpoint list in KV so waking an account's other
 // devices does not read D1 first. Invalidated on any change; D1 stays the
 // source of truth and a miss (or no binding) just runs the query.
-import { kvGet, kvPut, kvDelete, hasKv, pushListKey } from "./kvstore.js";
+import { kvGet, kvPut, kvDelete, hasKv, pushListKey, fcmListKey } from "./kvstore.js";
 
 const PUSH_LIST_TTL = 3600;            // seconds a cached endpoint list is trusted
 
@@ -150,20 +150,89 @@ export async function listSubscriptions(env, userId) {
 	return endpoints;
 }
 
+/* ---------- native FCM tokens (Android APK) ----------
+ * The APK's WebView has no Web Push, so it registers an FCM token instead.
+ * Stored in D1 (table fcm_tokens); the send path mints an OAuth token from the
+ * service account and pushes the same content-free tickle. */
+
+import { sendFcm, fcmAvailable } from "./fcm.js";
+
+const FCM_LIST_TTL = 3600;
+
+export async function saveFcmToken(env, userId, token, request) {
+	const now = Math.floor(Date.now() / 1000);
+	const ua = (request && request.headers.get("User-Agent") || "").slice(0, 300);
+	await env.DB.prepare(
+		`INSERT INTO fcm_tokens (token, user_id, platform, user_agent, created_at, last_used_at)
+		 VALUES (?, ?, 'android', ?, ?, ?)
+		 ON CONFLICT(token) DO UPDATE SET
+		   user_id = excluded.user_id,
+		   user_agent = excluded.user_agent,
+		   last_used_at = excluded.last_used_at`,
+	).bind(token, userId, ua, now, now).run();
+	await kvDelete(env, fcmListKey(userId));
+}
+
+export async function deleteFcmToken(env, userId, token) {
+	await env.DB.prepare("DELETE FROM fcm_tokens WHERE token = ? AND user_id = ?")
+		.bind(token, userId).run();
+	await kvDelete(env, fcmListKey(userId));
+}
+
+export async function listFcmTokens(env, userId) {
+	if (hasKv(env)) {
+		const cached = await kvGet(env, fcmListKey(userId), { cacheTtl: 60 });
+		if (cached && Array.isArray(cached)) return cached;
+	}
+	const res = await env.DB.prepare(
+		"SELECT token FROM fcm_tokens WHERE user_id = ? LIMIT 20",
+	).bind(userId).all();
+	const tokens = ((res && res.results) || []).map((r) => r.token);
+	if (hasKv(env)) await kvPut(env, fcmListKey(userId), tokens, FCM_LIST_TTL);
+	return tokens;
+}
+
+/** Send the tickle to every registered native (FCM) device. Best-effort. */
+export async function fcmToUser(env, userId, { topic } = {}) {
+	if (!fcmAvailable(env)) return { sent: 0, gone: 0 };
+	let tokens;
+	try {
+		tokens = await listFcmTokens(env, userId);
+	} catch (e) {
+		return { sent: 0, gone: 0 };      // table not migrated yet
+	}
+	if (!tokens.length) return { sent: 0, gone: 0 };
+
+	const results = await Promise.all(tokens.map(async (token) => {
+		const state = await sendFcm(env, token, { topic });
+		if (state === "gone") {
+			try { await env.DB.prepare("DELETE FROM fcm_tokens WHERE token = ?").bind(token).run(); }
+			catch (e) { /* non-fatal */ }
+		}
+		return state;
+	}));
+	if (results.some((r) => r === "gone")) await kvDelete(env, fcmListKey(userId));
+
+	return {
+		sent: results.filter((r) => r === "sent").length,
+		gone: results.filter((r) => r === "gone").length,
+	};
+}
+
 /**
  * Tell every device this account has registered that something needs attention.
  * Best-effort by design: a phone that cannot be reached must not hold up a login.
+ * Covers both Web Push (browsers) and native FCM (the Android APK).
  */
 export async function pushToUser(env, userId, { topic } = {}) {
 	let endpoints;
 	try {
 		endpoints = await listSubscriptions(env, userId);
 	} catch (e) {
-		return { sent: 0, gone: 0 };      // table not migrated yet
+		endpoints = [];                   // table not migrated yet
 	}
-	if (!endpoints.length) return { sent: 0, gone: 0 };
 
-	const results = await Promise.all(endpoints.map(async (endpoint) => {
+	const webResults = await Promise.all((endpoints || []).map(async (endpoint) => {
 		const state = await sendPush(env, endpoint, { topic });
 		if (state === "gone") {
 			try { await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(endpoint).run(); }
@@ -171,12 +240,13 @@ export async function pushToUser(env, userId, { topic } = {}) {
 		}
 		return state;
 	}));
+	if (webResults.some((r) => r === "gone")) await kvDelete(env, pushListKey(userId));
 
-	// A dropped endpoint changed the set: invalidate the cached list.
-	if (results.some((r) => r === "gone")) await kvDelete(env, pushListKey(userId));
+	// Native FCM devices (the APK) in parallel with the Web Push ones above.
+	const fcm = await fcmToUser(env, userId, { topic });
 
 	return {
-		sent: results.filter((r) => r === "sent").length,
-		gone: results.filter((r) => r === "gone").length,
+		sent: webResults.filter((r) => r === "sent").length + fcm.sent,
+		gone: webResults.filter((r) => r === "gone").length + fcm.gone,
 	};
 }

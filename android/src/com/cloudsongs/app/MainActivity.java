@@ -95,6 +95,9 @@ public class MainActivity extends Activity {
 				@Override
 				public void onPageFinished(WebView view, String url) {
 					injectMediaWatcher();
+					// Register this device for sign-in-approval pushes now that a
+					// signed-in session is available in the page.
+					ensureFcmToken();
 					// Capture the session cookie right after a login/redirect so the
 					// profile stays signed in across app restarts.
 					try { CookieManager.getInstance().flush(); } catch (Throwable ignored) {}
@@ -127,6 +130,35 @@ public class MainActivity extends Activity {
 		if ("seek".equals(action)) code = "window.CloudSongsControl&&CloudSongsControl.seek(" + arg + ")";
 		else code = "window.CloudSongsControl&&CloudSongsControl." + action + "()";
 		a.js(code);
+	}
+
+	/** Hand an FCM token to the web app so it can register it against the
+	 *  signed-in account (window.CloudSongsFCM.register). Called from the
+	 *  messaging service and once the page finishes loading. */
+	static void registerFcmToken(String token) {
+		final MainActivity a = sInstance;
+		if (a == null || token == null || token.length() == 0) return;
+		// JSON-encode the token so it is safe to embed in the JS string.
+		final String safe = org.json.JSONObject.quote(token);
+		a.js("window.CloudSongsFCM&&window.CloudSongsFCM.register(" + safe + ")");
+	}
+
+	/** Ask FCM for this device's token and register it (best-effort). */
+	private void ensureFcmToken() {
+		try {
+			com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken()
+				.addOnCompleteListener(new com.google.android.gms.tasks.OnCompleteListener<String>() {
+					@Override public void onComplete(com.google.android.gms.tasks.Task<String> task) {
+						if (!task.isSuccessful() || task.getResult() == null) return;
+						String token = task.getResult();
+						try {
+							getSharedPreferences("cs", Context.MODE_PRIVATE)
+									.edit().putString("fcm_token", token).apply();
+						} catch (Throwable ignored) {}
+						registerFcmToken(token);
+					}
+				});
+		} catch (Throwable ignored) { /* Play Services missing: FCM simply off */ }
 	}
 
 	private void js(final String code) {

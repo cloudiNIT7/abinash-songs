@@ -68,6 +68,9 @@ cannot be forged from devtools the way the old localStorage gate could.
 | `GET /api/me/push` | The VAPID public key a browser needs in order to subscribe |
 | `POST /api/me/push` | Store this device's push subscription |
 | `POST /api/me/push/remove` | `{endpoint}` forgets it again |
+| `GET /api/me/fcm` | Whether native FCM is available, and how many tokens are stored |
+| `POST /api/me/fcm` | `{token}` stores this Android device's FCM token |
+| `POST /api/me/fcm/remove` | `{token}` forgets it again |
 
 Bindings on the Pages project (production and preview):
 
@@ -103,13 +106,15 @@ Migrations are numbered files under `migrations/`, applied the same way:
 npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0005_sessions.sql
 npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0006_login_approvals.sql
 npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0007_push_subscriptions.sql
+npx wrangler d1 execute cloud-songs-auth --remote --file migrations/0008_fcm_tokens.sql
 ```
 
 `0005_sessions.sql` backs the Devices list, `0006_login_approvals.sql` the
-sign-in approvals, `0007_push_subscriptions.sql` the phone notifications. Until
-each is applied the matching feature simply stays out of the way: the device list
-reports that history isn't available, a correct password signs in directly as
-before, and nothing is pushed.
+sign-in approvals, `0007_push_subscriptions.sql` the browser phone notifications,
+and `0008_fcm_tokens.sql` the native Android (FCM) tokens. Until each is applied
+the matching feature simply stays out of the way: the device list reports that
+history isn't available, a correct password signs in directly as before, and
+nothing is pushed.
 
 ## Sign-in approvals
 
@@ -143,6 +148,40 @@ of those devices has to approve it.
   and tells it so. Unanswered requests expire after 5 minutes.
 - If every session has gone quiet for more than 7 days, sign-in proceeds without
   approval - otherwise an abandoned session row would lock the owner out.
+
+### The installed Android app (FCM)
+
+The APK is a WebView, and Android System WebView has **no Web Push API**, so the
+`sw.js`/VAPID path above cannot reach a closed app - that is why, before this,
+the approval only showed while the app was open. Native devices use Firebase
+Cloud Messaging instead:
+
+- The app fetches an FCM token and registers it via `POST /api/me/fcm`
+  (`window.CloudSongsFCM.register`, called from `MainActivity`), stored in the
+  `fcm_tokens` table.
+- On a parked sign-in, `pushToUser` sends the same content-free tickle to those
+  tokens through FCM HTTP v1 (`functions/_lib/fcm.js`), in parallel with Web
+  Push. `CloudSongsFirebaseService` wakes the closed app and raises the
+  Approve/Deny notification.
+- Sending needs the **`FCM_SERVICE_ACCOUNT`** secret: the JSON key of a service
+  account with the *Firebase Cloud Messaging API* enabled, for project
+  `gen-lang-client-0680456004`. Generate it in the Firebase console (Project
+  settings → Service accounts → Generate new private key) and set it with:
+
+  ```sh
+  cat service-account.json | npx wrangler pages secret put FCM_SERVICE_ACCOUNT --project-name abinash-songs
+  ```
+
+  Without it, `fcmAvailable()` is false: `/api/me/fcm` reports `available:false`,
+  no token is stored, nothing is sent over FCM, and Web Push / in-app polling
+  carry on exactly as before. The service-account key is minted into a
+  short-lived OAuth token that is cached in the `CACHE` KV namespace, so most
+  sends skip the token exchange.
+- The app also needs Google Play Services on the device (all standard Android
+  phones have it) and `google-services.json` at build time (committed under
+  `android/`; it holds only the public Android config, not a secret). Build the
+  APK with Gradle so the `firebase-messaging` SDK is included - see
+  `android/README.md`.
 
 Cost of the long poll: `wait.js` checks the table once a second for up to 25
 seconds, so a visible tab costs roughly one D1 read per second - more than the

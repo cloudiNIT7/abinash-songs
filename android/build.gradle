@@ -1,0 +1,58 @@
+// App module. This directory is both the root and the single app module, so
+// the source layout is the existing flat one (src/, res/, AndroidManifest.xml)
+// rather than the Gradle default under src/main/. google-services.json sits
+// next to this file, where the google-services plugin expects it.
+plugins {
+	id "com.android.application"
+	id "com.google.gms.google-services"
+}
+
+android {
+	namespace "com.cloudsongs.app"
+	compileSdk 34
+
+	defaultConfig {
+		applicationId "com.cloudsongs.app"
+		minSdk 21
+		targetSdk 34
+		versionCode 17
+		versionName "1.2.0"
+	}
+
+	// Reuse the existing flat layout instead of moving files into src/main/.
+	sourceSets {
+		main {
+			manifest.srcFile "AndroidManifest.xml"
+			java.srcDirs = ["src"]
+			res.srcDirs = ["res"]
+		}
+	}
+
+	signingConfigs {
+		release {
+			storeFile file("cloudsongs.keystore")
+			storePassword "cloudsongs"
+			keyAlias "cloudsongs"
+			keyPassword "cloudsongs"
+		}
+	}
+
+	buildTypes {
+		release {
+			minifyEnabled false
+			signingConfig signingConfigs.release
+		}
+	}
+
+	compileOptions {
+		sourceCompatibility JavaVersion.VERSION_1_8
+		targetCompatibility JavaVersion.VERSION_1_8
+	}
+}
+
+dependencies {
+	// Firebase Cloud Messaging, so a closed app can be woken for a sign-in
+	// approval. The BoM keeps the transitive versions consistent.
+	implementation platform("com.google.firebase:firebase-bom:33.3.0")
+	implementation "com.google.firebase:firebase-messaging"
+}

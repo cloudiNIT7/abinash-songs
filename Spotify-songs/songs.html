@@ -6138,6 +6138,22 @@
 		}
 		window.CSPushSubscribe = subscribePush;
 
+		/* ---- native FCM bridge (Android APK) ----
+		 * The APK's WebView has no Web Push, so the native app fetches an FCM
+		 * token and hands it here; we register it against the signed-in account
+		 * so a closed app can be woken for a sign-in approval. */
+		window.CloudSongsFCM = {
+			register: function (token) {
+				if (!token) return;
+				fetch("/api/me/fcm", {
+					method: "POST",
+					credentials: "same-origin",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ token: token }),
+				}).catch(function () { /* best-effort; the poll still works */ });
+			}
+		};
+
 		// This script sits above the pop-up's markup in the document, so wire it
 		// once the DOM is parsed and hold anything the poll finds meanwhile.
 		function init() {
