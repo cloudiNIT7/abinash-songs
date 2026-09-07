@@ -12,9 +12,11 @@ main = "src/index.js"
 compatibility_date = "2026-09-01"
 
 [triggers]
-# Every two hours. The endpoint applies quiet hours and per-account caps, so
-# this only decides how often we *check*, not how often anyone is messaged.
-crons = ["0 */2 * * *"]
+# Hourly. The endpoint applies quiet hours, a four-a-day cap and a four-hour
+# minimum gap, so this only decides how often we *check* - checking hourly is
+# what lets those four land at roughly 09:00 / 13:00 / 17:00 / 21:00 local
+# rather than bunching up early.
+crons = ["0 * * * *"]
 
 [vars]
 SITE_ORIGIN = "https://abinash-songs.pages.dev"

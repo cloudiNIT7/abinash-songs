@@ -21,10 +21,10 @@ import { buildSuggestion, localNow } from "../../_lib/suggest.js";
 import { suggestToUser } from "../../_lib/push.js";
 
 const MAX_PER_DAY = 4;
-// The gap has to fit the cap inside the waking window: 09:00-22:00 is 13 hours,
-// so four nudges need at most a ~4h spacing. Three hours lands them around
-// 09:00 / 13:00 / 17:00 / 21:00 given the two-hourly cron.
-const MIN_GAP_HOURS = 3;
+// The gap has to fit the cap inside the waking window. With the hourly cron and
+// a four-hour spacing, the four nudges land around 09:00 / 13:00 / 17:00 /
+// 21:00 local - morning through night, rather than all before tea time.
+const MIN_GAP_HOURS = 4;
 const QUIET_BEFORE = 9;         // local hour before which we stay silent
 const QUIET_AFTER = 22;         // local hour after which we stay silent
 const BATCH = 25;               // accounts considered per run
