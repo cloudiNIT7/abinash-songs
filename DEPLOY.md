@@ -184,7 +184,9 @@ binding once: **Pages project → Settings → Functions → KV namespace bindin
 Add**, variable name `CACHE`. Nothing else changes; `X-Cache-Store: kv` on a miss
 confirms it took effect. (Do not move these bindings into a `wrangler.toml`: for
 Pages, that file becomes the source of truth and the dashboard's `DB` and
-`SESSION_SECRET` bindings would be dropped.)
+`SESSION_SECRET` bindings would be dropped.) The same `CACHE` binding also takes
+the session poll and login throttling off D1 — see **High traffic → Keeping the
+single D1 off the hot path** below.
 
 Freshness comes from each response's own `Cache-Control`, set through
 `json({ maxAge, swr })`:
@@ -216,6 +218,32 @@ in a single D1 query, and the session's "last active" write is handed to
 follows what the tab is doing: every 20s while it is playing, every 60s when it
 is idle, plus an immediate check on focus, tab switch and reconnect.
 
+### Keeping the single D1 off the hot path
+
+D1 is one database, and it is not sharded per user — login approvals and the
+device list need every one of an account's sessions in one place, so splitting
+users across databases is not an option (and adding an external MySQL/Postgres
+is not either: the Workers runtime has no pooled SQL socket, so a spike would
+open a connection per invocation). The way one database stops being the ceiling
+is to keep the high-frequency reads off it, using the same globally-replicated
+`CACHE` KV namespace the response cache already prefers (`functions/_lib/kvstore.js`).
+
+Two things used to hit D1 on essentially every request; both now go to KV when
+it is bound, and fall back to D1 unchanged when it is not:
+
+| What | Before | With `CACHE` bound |
+| --- | --- | --- |
+| Session poll (`/api/auth/me`, `/api/me/*`) | one D1 read per poll, per open tab | resolved from KV for up to 60s per session; D1 read only on a cache miss |
+| Login rate-limit (`login_attempts`) | a D1 read + write per attempt | read/write against KV, which expires the rows on its own |
+
+The session cache is short-lived (60s) and is deleted outright on logout and on
+"sign this device out", so a revoked session stops validating at once rather
+than lingering for the TTL. D1 remains the source of truth: the cache only ever
+holds a copy of a row D1 already returned, and a KV miss or a missing binding
+just runs the original query. Nothing new has to be provisioned — it reuses the
+`CACHE` namespace below — and with no binding the behaviour is exactly as before,
+just with every poll landing on D1 again.
+
 Still worth doing, but not possible while the site is only on `pages.dev` with no
 zone: WAF rate limiting rules (per-IP, on `/song/*`, `/artist/*` and
 `/api/auth/login` first), Cache Rules, and tiered caching. Adding a custom domain
@@ -235,6 +263,7 @@ matches a commit.
 | --- | --- |
 | `functions/_lib/saavn.js` | JioSaavn client: search, song, playlist, album, lyrics |
 | `functions/_lib/des.js` | DES-ECB decryption of `encrypted_media_url` (WebCrypto has no DES) |
+| `functions/_lib/kvstore.js` | JSON-over-KV helper; caches sessions and login throttling on the `CACHE` namespace, no-op without it |
 | `functions/_middleware.js` | 404s the project's own plumbing (`/functions/*`, `node_modules`, …) |
 | `_routes.json` | Only API paths invoke Functions; static requests stay free |
 | `_headers` | Security headers, long cache for assets, `no-cache` for HTML |

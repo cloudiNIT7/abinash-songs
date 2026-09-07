@@ -31,6 +31,13 @@ const ATTEMPT_WINDOW = 15 * 60;
 
 const enc = new TextEncoder();
 
+/* KV offloading: session lookups and rate limiting are cached in the globally
+ * replicated `CACHE` namespace so the single D1 database is not hit on every
+ * poll and every login. All of it degrades to D1 when no namespace is bound. */
+import { kvGet, kvPut, kvDelete, sessionKey, throttleKey, hasKv } from "./kvstore.js";
+
+const SESSION_CACHE_TTL = 60;          // seconds a resolved session is trusted from KV
+
 function toHex(buffer) {
 	return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
@@ -180,6 +187,9 @@ export async function revokeSession(env, sessionId, userId) {
 	const res = await env.DB.prepare(
 		"UPDATE sessions SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at = 0",
 	).bind(now, sessionId, userId).run();
+	// Drop the cached session so it stops validating immediately, not just when
+	// the short KV TTL lapses. Best-effort; the TTL is the backstop.
+	await kvDelete(env, sessionKey(sessionId));
 	return !!(res && res.meta && res.meta.changes);
 }
 
@@ -297,6 +307,22 @@ export async function currentUser(request, env, waitUntil) {
 
 	let row = null;
 
+	// Fast path: a recently-resolved session is cached in KV, which is
+	// replicated to every colo. The session poll from every open tab lands
+	// here, so serving it from KV instead of D1 is what keeps one database from
+	// being the ceiling under traffic. The cache is short-lived (SESSION_CACHE_TTL)
+	// and is deleted outright on logout/revoke, so a signed-out session cannot
+	// keep working past that window.
+	if (claims.sid) {
+		const cached = await kvGet(env, sessionKey(claims.sid), { cacheTtl: SESSION_CACHE_TTL });
+		if (cached && cached.uid === claims.uid && cached.exp && cached.exp > now) {
+			// A cached row means "known good session, here is its user". D1 is
+			// untouched on this request.
+			cached.user.session_id = claims.sid;
+			return cached.user;
+		}
+	}
+
 	// One round trip for the account and its session. This is the hot path -
 	// every authenticated request and every session poll runs it - so it is
 	// deliberately a single query rather than two.
@@ -336,6 +362,20 @@ export async function currentUser(request, env, waitUntil) {
 		delete row.s_expires;
 		delete row.s_seen;
 		row.session_id = claims.sid || "";
+
+		// Warm the KV cache so the next poll for this session skips D1. Only a
+		// session-backed row is cached (we need a sid to key it and to be able
+		// to invalidate it); the TTL never outlives the cookie's own expiry.
+		if (claims.sid && hasKv(env)) {
+			const ttl = Math.min(SESSION_CACHE_TTL, Math.max(0, claims.exp - now));
+			if (ttl > 0) {
+				// Cache a copy without the per-request session_id field.
+				const { session_id, ...userForCache } = row;
+				const write = kvPut(env, sessionKey(claims.sid),
+					{ uid: claims.uid, exp: claims.exp, user: userForCache }, ttl);
+				if (waitUntil) waitUntil(write); else await write;
+			}
+		}
 	}
 	return row;
 }
@@ -451,8 +491,23 @@ export async function pruneApprovals(env, userId) {
 
 /* ---------- rate limiting ---------- */
 
+/* ---------- rate limiting ----------
+ * Login throttling is one of the two things that hit D1 on every attempt. When
+ * a KV namespace is bound it lives there instead: KV is replicated to every
+ * colo, so a flood of attempts is absorbed at the edge rather than pounding one
+ * database, and the rows expire on their own (no pruning). KV has no atomic
+ * increment, so a burst can undercount slightly across colos - acceptable for a
+ * guard whose job is to stop sustained guessing, and the lockout still fires.
+ * Without the binding it falls back to the original D1 table unchanged. */
+
 export async function checkThrottle(env, key) {
 	const now = Math.floor(Date.now() / 1000);
+	if (hasKv(env)) {
+		const row = await kvGet(env, throttleKey(key), { cacheTtl: 0 });
+		if (!row) return { allowed: true };
+		if (row.locked_until > now) return { allowed: false, retryIn: row.locked_until - now };
+		return { allowed: true };          // stale windows just expire out of KV
+	}
 	const row = await env.DB.prepare("SELECT * FROM login_attempts WHERE key = ?").bind(key).first();
 	if (!row) return { allowed: true };
 	if (row.locked_until > now) {
@@ -466,6 +521,19 @@ export async function checkThrottle(env, key) {
 
 export async function recordFailure(env, key) {
 	const now = Math.floor(Date.now() / 1000);
+	if (hasKv(env)) {
+		const row = await kvGet(env, throttleKey(key), { cacheTtl: 0 });
+		// A window that has already lapsed starts fresh.
+		const active = row && (now - row.first_at <= ATTEMPT_WINDOW);
+		const attempts = (active ? row.attempts : 0) + 1;
+		const first_at = active ? row.first_at : now;
+		const locked_until = attempts >= MAX_ATTEMPTS ? now + LOCK_SECONDS : 0;
+		// Keep the row alive for the whole window or the whole lockout, whichever
+		// is longer, then let KV drop it.
+		const ttl = Math.max(ATTEMPT_WINDOW, locked_until ? locked_until - now : 0);
+		await kvPut(env, throttleKey(key), { attempts, first_at, locked_until }, ttl);
+		return;
+	}
 	const row = await env.DB.prepare("SELECT * FROM login_attempts WHERE key = ?").bind(key).first();
 	if (!row) {
 		await env.DB.prepare(
@@ -481,6 +549,10 @@ export async function recordFailure(env, key) {
 }
 
 export async function clearFailures(env, key) {
+	if (hasKv(env)) {
+		await kvDelete(env, throttleKey(key));
+		return;
+	}
 	await env.DB.prepare("DELETE FROM login_attempts WHERE key = ?").bind(key).run();
 }
 
