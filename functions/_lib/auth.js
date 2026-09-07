@@ -569,6 +569,44 @@ export async function pruneApprovals(env, userId) {
 	} catch (e) { /* non-fatal */ }
 }
 
+/**
+ * How long an explicit "no" keeps the account shut.
+ *
+ * A denial has to mean something. Without this, a refused sign-in could simply
+ * take the email-code route instead and be let straight in, which made the
+ * Deny button decorative. Fifteen minutes matches how long pruneApprovals keeps
+ * a denied row, so the block and the evidence for it expire together.
+ */
+const DENY_BLOCK_SECONDS = 15 * 60;
+
+/**
+ * Has a sign-in for this account been denied in the last few minutes?
+ *
+ * Read from D1 rather than a cache: this gates a sign-in, so it must not be
+ * possible for a missing KV binding to make the check quietly pass.
+ *
+ * Note this is account-wide, not per-IP: an attacker can change address, so
+ * scoping it to one would defeat the point. The cost is that the owner cannot
+ * start a *new* sign-in for fifteen minutes after refusing one - they are by
+ * definition already signed in somewhere, and it clears on its own.
+ */
+export async function recentlyDenied(env, userId) {
+	const cutoff = Math.floor(Date.now() / 1000) - DENY_BLOCK_SECONDS;
+	try {
+		const row = await env.DB.prepare(
+			`SELECT decided_at FROM login_approvals
+			  WHERE user_id = ? AND status = 'denied' AND decided_at > ?
+			  ORDER BY decided_at DESC LIMIT 1`,
+		).bind(userId, cutoff).first();
+		if (!row) return null;
+		return { deniedAt: row.decided_at, retryIn: Math.max(1, row.decided_at + DENY_BLOCK_SECONDS - Math.floor(Date.now() / 1000)) };
+	} catch (e) {
+		return null;                       // table missing: nothing to enforce
+	}
+}
+
+export { DENY_BLOCK_SECONDS };
+
 /* ---------- rate limiting ----------
  * Login throttling is one of the two things that hit D1 on every attempt. When
  * a KV namespace is bound it lives there instead: KV is replicated to every

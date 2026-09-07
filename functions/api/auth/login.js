@@ -2,7 +2,7 @@
 import {
 	verifyPassword, createSessionCookie, publicUser, reply, badRequest, readJson,
 	normaliseEmail, checkThrottle, recordFailure, clearFailures, clientKey, issueOtp,
-	countApprovers, createApproval,
+	countApprovers, createApproval, recentlyDenied,
 } from "../../_lib/auth.js";
 import { pushToUser } from "../../_lib/push.js";
 
@@ -40,6 +40,24 @@ export async function onRequestPost(context) {
 	}
 
 	await clearFailures(env, key);
+
+	/* A recent denial shuts the account for a few minutes.
+	 *
+	 * Checked after the password so it cannot be used to probe which emails
+	 * exist, but before an approval is raised - otherwise a refused attempt
+	 * could just try again and again, and every retry would buzz the owner's
+	 * phone. The right password is not enough once someone has said no. */
+	try {
+		const denied = await recentlyDenied(env, user.id);
+		if (denied) {
+			return reply({
+				ok: false,
+				denied: true,
+				retryIn: denied.retryIn,
+				error: `A sign-in was denied from one of your devices. Try again in ${Math.ceil(denied.retryIn / 60)} minute(s).`,
+			}, { status: 403 });
+		}
+	} catch (e) { /* cannot check: fall through to the normal flow */ }
 
 	// An account that never confirmed its email: send a fresh code and send
 	// the client to the verify screen instead of signing in.

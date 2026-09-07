@@ -406,6 +406,9 @@
 			function startApprovalWait(result, email) {
 				waitEmail = result.email || email;
 				waitError.textContent = "";
+				// Fresh request: the fallback is on offer again (it is hidden
+				// once a request is explicitly denied).
+				if (waitCode) waitCode.style.display = "";
 				waitDevice.textContent = result.device ? "Request sent for " + result.device : "";
 				showWaitScreen(true);
 
@@ -438,6 +441,10 @@
 						stopWaiting();
 						waitTimer.textContent = "";
 						waitError.textContent = "That device denied this sign-in. If it wasn't you, change your password.";
+						// A denial is final: the email-code fallback exists for
+						// when nobody *answers*, not as a way round a "no". The
+						// server refuses it too - this just stops offering it.
+						if (waitCode) waitCode.style.display = "none";
 						return;
 					}
 					if (status.status === "expired" || status.status === "unknown") {
