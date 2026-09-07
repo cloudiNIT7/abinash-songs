@@ -46,9 +46,29 @@ function _shape(user) {
 	return { ...user, profile_completed: !!(user.profile_complete || user.profile_completed) };
 }
 
+/**
+ * A local "this browser was signed in" hint.
+ *
+ * The session itself lives in an HttpOnly cookie, so a page cannot know whether
+ * it is signed in without asking the server - which is asynchronous. The
+ * landing page needs to decide *before* it paints whether to show the marketing
+ * page or jump straight to the player, so it reads this hint synchronously.
+ *
+ * It is only a hint: it grants nothing, and the real check still runs. A stale
+ * `1` means a returning visitor briefly sees the splash before being shown the
+ * landing page instead.
+ */
+function _rememberAuth(user) {
+	try {
+		if (user) localStorage.setItem("cs_authed", "1");
+		else localStorage.removeItem("cs_authed");
+	} catch (e) { /* private mode / storage disabled */ }
+}
+
 async function _loadSession() {
 	const res = await _request("/me");
 	_user = res.ok ? _shape(res.user) : null;
+	_rememberAuth(_user);
 	return _user;
 }
 
@@ -104,6 +124,7 @@ async function logIn(email, password) {
 	if (!res.ok) return { ok: false, status: res.status, noAccount: !!res.noAccount, message: res.message };
 	_user = _shape(res.user);
 	_readyPromise = Promise.resolve(_user);
+	_rememberAuth(_user);
 	return { ok: true, user: _user };
 }
 
@@ -124,6 +145,7 @@ async function claimLoginApproval(approvalId) {
 	if (!res.ok) return { ok: false, message: res.message };
 	_user = _shape(res.user);
 	_readyPromise = Promise.resolve(_user);
+	_rememberAuth(_user);
 	return { ok: true, user: _user };
 }
 
@@ -135,6 +157,7 @@ async function verifyOtp(email, code) {
 	if (!res.ok) return { ok: false, message: res.message };
 	_user = _shape(res.user);
 	_readyPromise = Promise.resolve(_user);
+	_rememberAuth(_user);
 	return { ok: true, user: _user };
 }
 
@@ -169,6 +192,7 @@ async function resetPassword(email, token, password) {
 	if (!res.ok) return { ok: false, message: res.message };
 	_user = _shape(res.user);
 	_readyPromise = Promise.resolve(_user);
+	_rememberAuth(_user);
 	return { ok: true, user: _user };
 }
 
@@ -176,6 +200,7 @@ async function logOut() {
 	await _request("/logout", { method: "POST" });
 	_user = null;
 	_readyPromise = Promise.resolve(null);
+	_rememberAuth(null);
 	return { ok: true };
 }
 
@@ -187,6 +212,7 @@ async function updateProfile(displayName, avatarColor, bio) {
 	if (!res.ok) return { ok: false, message: res.message };
 	_user = _shape(res.user);
 	_readyPromise = Promise.resolve(_user);
+	_rememberAuth(_user);
 	return { ok: true, user: _user };
 }
 

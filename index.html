@@ -18,8 +18,114 @@
 			href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap"
 			rel="stylesheet"
 		/>
+
+		<!-- ============================================================
+		     First visit vs. returning visit.
+
+		     A first-time visitor gets this landing page. Someone who has been
+		     here before *and* was signed in goes straight to the player, behind
+		     a short logo splash, so they are not made to walk past the
+		     marketing page every single time (this is also what the Android app
+		     loads, so it makes the app open on the music).
+
+		     The class is set synchronously, before anything paints, so the
+		     landing page never flashes up first. Whether the session is still
+		     valid is confirmed just below, once auth.js has answered.
+		     ============================================================ -->
+		<style>
+			#csSplash {
+				position: fixed;
+				inset: 0;
+				z-index: 99999;
+				display: none;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				gap: 22px;
+				background: #121212;
+				background-image:
+					radial-gradient(38rem 24rem at 50% 32%, rgba(29, 185, 84, .16), transparent 62%);
+			}
+			html.cs-booting #csSplash { display: flex; }
+			/* Nothing behind the splash should scroll or be read out while it shows. */
+			html.cs-booting, html.cs-booting body { overflow: hidden; height: 100%; }
+
+			#csSplash .cs-splash__logo {
+				display: flex;
+				align-items: center;
+				gap: 12px;
+				animation: cs-splash-in .45s cubic-bezier(.2, .7, .3, 1) both;
+			}
+			#csSplash .cs-splash__logo img { height: 54px; width: auto; display: block; }
+			#csSplash .cs-splash__logo span {
+				color: #fff;
+				font-family: "DM Sans", system-ui, sans-serif;
+				font-size: 25px;
+				font-weight: 700;
+				letter-spacing: -.4px;
+			}
+			@keyframes cs-splash-in {
+				from { opacity: 0; transform: translateY(8px) scale(.97); }
+				to   { opacity: 1; transform: none; }
+			}
+
+			/* Indeterminate track - we do not know how long the session check takes. */
+			#csSplash .cs-splash__bar {
+				position: relative;
+				width: 132px;
+				height: 3px;
+				border-radius: 999px;
+				background: rgba(255, 255, 255, .14);
+				overflow: hidden;
+			}
+			#csSplash .cs-splash__bar::after {
+				content: "";
+				position: absolute;
+				top: 0; bottom: 0;
+				width: 42%;
+				border-radius: 999px;
+				background: linear-gradient(90deg, #1ed760, #1DB954);
+				animation: cs-splash-slide 1.05s ease-in-out infinite;
+			}
+			@keyframes cs-splash-slide {
+				0%   { left: -45%; }
+				100% { left: 100%; }
+			}
+
+			@media (prefers-reduced-motion: reduce) {
+				#csSplash .cs-splash__logo { animation: none; }
+				#csSplash .cs-splash__bar::after { animation: none; left: 0; width: 100%; opacity: .7; }
+			}
+		</style>
+		<script>
+			(function () {
+				try {
+					// An explicit ?home / ?stay always shows the landing page, so a
+					// signed-in visitor is never locked out of it.
+					if (/[?&](home|stay)\b/.test(location.search)) return;
+					var seen = localStorage.getItem("cs_seen");
+					var authed = localStorage.getItem("cs_authed");
+					// Returning *and* previously signed in: boot straight to the
+					// player. A first-timer, or someone signed out, sees the page.
+					if (seen && authed) {
+						document.documentElement.className += " cs-booting";
+					}
+					localStorage.setItem("cs_seen", "1");
+				} catch (e) { /* storage blocked: always show the landing page */ }
+			})();
+		</script>
 	</head>
 	<body>
+		<!-- Shown only to a returning, signed-in visitor while the session is
+		     confirmed; then we replace this page with the player. -->
+		<div id="csSplash" role="status" aria-live="polite" aria-label="Opening Cloud Songs">
+			<span class="cs-splash__logo">
+				<img src="./assets/logo.png?v=20260906f" alt="" />
+				<span>Cloud Songs</span>
+			</span>
+			<span class="cs-splash__bar"></span>
+		</div>
+
 		<!--Header-->
 		<custom-header></custom-header>
 		<!--Header-->
@@ -222,6 +328,53 @@ Your latest listening trends</h1>
 
 		<div id="opacity" class="opacity"></div>
 		<script src="./js/auth.js?v=20260906f"></script>
+		<script>
+			/* Finish the decision started in <head>.
+			 *
+			 * The splash is only up for a returning visitor whose browser thinks
+			 * it was signed in. Confirm that against the server: if the session
+			 * is real, replace this page with the player (replace(), so Back does
+			 * not bounce between the two); if it has expired, drop the hint and
+			 * show the landing page as normal.
+			 *
+			 * A timeout guarantees nobody is ever stranded on the splash. */
+			(function () {
+				var root = document.documentElement;
+				if (root.className.indexOf("cs-booting") < 0) return;
+
+				var settled = false;
+				function reveal() {
+					if (settled) return;
+					settled = true;
+					root.className = root.className.replace(/\s*\bcs-booting\b/g, "");
+				}
+				function toPlayer() {
+					if (settled) return;
+					settled = true;
+					window.location.replace("./Spotify-songs/songs.html");
+				}
+
+				// Never hold the splash for longer than this, whatever the network does.
+				var bail = setTimeout(reveal, 4000);
+
+				function decide() {
+					clearTimeout(bail);
+					var signedIn = false;
+					try { signedIn = (typeof isLoggedIn === "function") && isLoggedIn(); } catch (e) {}
+					if (signedIn) { toPlayer(); return; }
+					// The hint was stale - the session ended elsewhere or expired.
+					try { localStorage.removeItem("cs_authed"); } catch (e) {}
+					reveal();
+				}
+
+				if (typeof authReady === "function") {
+					authReady().then(decide).catch(function () { clearTimeout(bail); reveal(); });
+				} else {
+					clearTimeout(bail);
+					reveal();
+				}
+			})();
+		</script>
 		<script src="./component/header.js?v=20260906f"></script>
 		<script src="./component/footer.js?v=20260906f"></script>
 		<script src="./js/main.js?v=20260906f"></script>
