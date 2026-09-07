@@ -122,6 +122,21 @@ public class MainActivity extends Activity {
 
 	/* ---------- bridge from PlaybackService back into the web player ---------- */
 
+	/**
+	 * Reached when the media notification (or the approval notification) is
+	 * tapped while the app is already running. Because the Activity is
+	 * `singleTask`, Android reuses this instance and calls this instead of
+	 * onCreate, so we deliberately do **not** touch the WebView: the page keeps
+	 * its state and the song keeps playing from where it was, rather than the
+	 * whole app reloading and restarting the track.
+	 */
+	@Override
+	protected void onNewIntent(Intent intent) {
+		super.onNewIntent(intent);
+		setIntent(intent);
+		// No web.loadUrl() / reload() here - that is the entire point.
+	}
+
 	/** Called by PlaybackService when a notification / lock-screen button is hit. */
 	static void control(String action, long arg) {
 		final MainActivity a = sInstance;

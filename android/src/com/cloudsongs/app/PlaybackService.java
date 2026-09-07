@@ -171,6 +171,22 @@ public class PlaybackService extends Service {
 		return flags;
 	}
 
+	/**
+	 * Tapping a notification must return to the *running* player, not build a
+	 * second one. MainActivity is `launchMode="singleTask"`, and these flags
+	 * bring the existing task forward and deliver the intent to
+	 * {@code onNewIntent()} instead of recreating the Activity - so the WebView,
+	 * and the song playing inside it, carry on from exactly where they were
+	 * rather than reloading the page from scratch.
+	 */
+	private PendingIntent openApp() {
+		Intent i = new Intent(this, MainActivity.class)
+				.setAction(Intent.ACTION_MAIN)
+				.addCategory(Intent.CATEGORY_LAUNCHER)
+				.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+		return PendingIntent.getActivity(this, 0, i, pendingFlags());
+	}
+
 	private void refreshSession() {
 		MediaMetadata.Builder mb = new MediaMetadata.Builder()
 				.putString(MediaMetadata.METADATA_KEY_TITLE, mTitle)
@@ -204,8 +220,7 @@ public class PlaybackService extends Service {
 				.setVisibility(Notification.VISIBILITY_PUBLIC)
 				.setOngoing(mPlaying)
 				.setShowWhen(false)
-				.setContentIntent(PendingIntent.getActivity(this, 0,
-						new Intent(this, MainActivity.class), pendingFlags()));
+				.setContentIntent(openApp());
 		if (mArt != null) b.setLargeIcon(mArt);
 
 		b.addAction(new Notification.Action.Builder(
@@ -236,8 +251,7 @@ public class PlaybackService extends Service {
 				.setContentText(mArtist.length() > 0 ? (mTitle + " \u2022 " + mArtist) : mTitle)
 				.setVisibility(Notification.VISIBILITY_PUBLIC)
 				.setAutoCancel(true)
-				.setContentIntent(PendingIntent.getActivity(this, 0,
-						new Intent(this, MainActivity.class), pendingFlags()));
+				.setContentIntent(openApp());
 		if (Build.VERSION.SDK_INT < 26) {
 			// Pre-Oreo: HIGH priority is what makes it a heads-up banner.
 			b.setPriority(Notification.PRIORITY_HIGH);
