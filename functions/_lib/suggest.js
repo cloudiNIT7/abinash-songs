@@ -242,7 +242,8 @@ export function chooseLine({ weather, hour, weekday, event, reason }) {
 
 /**
  * Find a real track for a mood, using the site's own search so the suggestion
- * points at something that actually exists. Returns { name, artist, id } or null.
+ * points at something that actually exists.
+ * Returns { name, artist, id, image } or null.
  */
 export async function pickTrack(origin, mood, avoidId) {
 	try {
@@ -260,10 +261,22 @@ export async function pickTrack(origin, mood, avoidId) {
 			id: String(chosen.id || ""),
 			name: String(chosen.song || chosen.title || chosen.name || "").trim(),
 			artist: String(chosen.primary_artists || chosen.singers || chosen.artist || "").trim(),
+			image: bigArt(chosen.image || ""),
 		};
 	} catch (e) {
 		return null;
 	}
+}
+
+/**
+ * JioSaavn hands back whatever size the search felt like - often 150x150, which
+ * looks poor blown up in a notification. The CDN serves the same file at other
+ * sizes, so ask for 500x500. Must stay https: FCM refuses plain http images.
+ */
+function bigArt(url) {
+	const s = String(url || "").trim();
+	if (!/^https:\/\//i.test(s)) return "";
+	return s.replace(/(\d{2,3})x\1(?=\.[a-z]+$)/i, "500x500");
 }
 
 /**

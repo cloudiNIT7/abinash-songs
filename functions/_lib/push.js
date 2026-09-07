@@ -235,11 +235,14 @@ export async function suggestToUser(env, userId, suggestion) {
 
 	const title = suggestion.title || "Listen to this";
 	const body = suggestion.body || "";
+	// Album art, so the notification shows the cover rather than just text.
+	const image = (suggestion.song && suggestion.song.image) || "";
 	const data = {
 		topic: "cs-suggest",
 		kind: "suggest",
 		songId: (suggestion.song && suggestion.song.id) || "",
 		songName: (suggestion.song && suggestion.song.name) || "",
+		image: image,
 	};
 
 	let tokens;
@@ -254,7 +257,7 @@ export async function suggestToUser(env, userId, suggestion) {
 		const state = await sendFcm(env, token, {
 			topic: "cs-suggest",
 			data,
-			notify: { title, body, tag: "cs-suggest" },
+			notify: { title, body, tag: "cs-suggest", image },
 		});
 		if (state === "gone") {
 			try { await env.DB.prepare("DELETE FROM fcm_tokens WHERE token = ?").bind(token).run(); }

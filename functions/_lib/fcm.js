@@ -152,6 +152,13 @@ export async function sendFcm(env, token, { topic = "cs-approval", data = null, 
 			click_action: "android.intent.action.MAIN",
 		};
 		if (notify.channel) msg.android.notification.channel_id = notify.channel;
+		// Album art. Shown as the big picture when the notification is expanded
+		// and as the thumbnail when collapsed. FCM requires https and rejects a
+		// malformed URL outright, so only set it when it looks sane.
+		if (notify.image && /^https:\/\//i.test(notify.image)) {
+			msg.notification.image = notify.image;
+			msg.android.notification.image = notify.image;
+		}
 	}
 
 	const message = { message: msg };
