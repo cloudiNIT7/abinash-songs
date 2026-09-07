@@ -159,6 +159,17 @@ import { sendFcm, fcmAvailable } from "./fcm.js";
 
 const FCM_LIST_TTL = 3600;
 
+/* Every notification carries a picture. Album art when we have it; otherwise
+ * the app icon, so a nudge never lands as a bare line of text. Must be an
+ * absolute https URL - FCM fetches it itself and rejects anything else. */
+const SITE = "https://abinash-songs.pages.dev";
+const FALLBACK_IMAGE = SITE + "/assets/pwa-512.png";
+
+function imageOr(url) {
+	const s = String(url || "").trim();
+	return /^https:\/\//i.test(s) ? s : FALLBACK_IMAGE;
+}
+
 export async function saveFcmToken(env, userId, token, request) {
 	const now = Math.floor(Date.now() / 1000);
 	const ua = (request && request.headers.get("User-Agent") || "").slice(0, 300);
@@ -192,7 +203,15 @@ export async function listFcmTokens(env, userId) {
 	return tokens;
 }
 
-/** Send the tickle to every registered native (FCM) device. Best-effort. */
+/**
+ * Send the sign-in approval alert to every registered native (FCM) device.
+ *
+ * Sent as a notification message with the app icon, so Firebase draws it - with
+ * a picture - even on a build whose own handler would render a plain line of
+ * text. The wording stays deliberately generic: no device, city or IP travels in
+ * the push, exactly as before. The details are only ever read from the API once
+ * the app is opened.
+ */
 export async function fcmToUser(env, userId, { topic } = {}) {
 	if (!fcmAvailable(env)) return { sent: 0, gone: 0 };
 	let tokens;
@@ -204,7 +223,15 @@ export async function fcmToUser(env, userId, { topic } = {}) {
 	if (!tokens.length) return { sent: 0, gone: 0 };
 
 	const results = await Promise.all(tokens.map(async (token) => {
-		const state = await sendFcm(env, token, { topic });
+		const state = await sendFcm(env, token, {
+			topic,
+			notify: {
+				title: "Approve sign-in to Cloud Songs?",
+				body: "Someone signed in with your password. Tap to review.",
+				tag: "cs-approval",
+				image: FALLBACK_IMAGE,
+			},
+		});
 		if (state === "gone") {
 			try { await env.DB.prepare("DELETE FROM fcm_tokens WHERE token = ?").bind(token).run(); }
 			catch (e) { /* non-fatal */ }
@@ -236,7 +263,8 @@ export async function suggestToUser(env, userId, suggestion) {
 	const title = suggestion.title || "Listen to this";
 	const body = suggestion.body || "";
 	// Album art, so the notification shows the cover rather than just text.
-	const image = (suggestion.song && suggestion.song.image) || "";
+	// Falls back to the app icon when a track has no usable artwork.
+	const image = imageOr(suggestion.song && suggestion.song.image);
 	const data = {
 		topic: "cs-suggest",
 		kind: "suggest",
