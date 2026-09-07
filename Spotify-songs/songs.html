@@ -593,6 +593,18 @@
 			transition:opacity .35s ease, transform .35s ease, visibility .35s;
 		}
 		.np-banner.is-open { opacity:1; visibility:visible; transform:scale(1); }
+		/* While the full banner is up, the page behind must not move: a swipe
+		   should do nothing until the X is tapped. `overflow:hidden` alone is
+		   ignored by mobile Safari and the Android WebView once a scroll is
+		   already in flight, so the body is pinned with position:fixed and the
+		   scroll offset is held in an inline `top`, then restored on close -
+		   which is also what stops the page jumping back to the top. */
+		body.np-locked {
+			position:fixed;
+			left:0; right:0; width:100%;
+			overflow:hidden;
+			overscroll-behavior:none;
+		}
 		.np-banner__bg {
 			position:absolute; inset:-60px; z-index:0;
 			background-size:cover; background-position:center;
@@ -2716,10 +2728,28 @@
 		if (skipBackBtn) skipBackBtn.addEventListener("click", function (e) { e.preventDefault(); prevTrack(); });
 
 		// ---- Now-Playing banner open/close + controls ----
+		/* Page-scroll lock for the full banner.
+		   The offset is remembered so closing puts the list back exactly where
+		   it was instead of at the top. */
+		var npScrollY = 0;
+		function lockPageScroll() {
+			if (document.body.classList.contains("np-locked")) return;
+			npScrollY = window.scrollY || window.pageYOffset || 0;
+			document.body.style.top = (-npScrollY) + "px";
+			document.body.classList.add("np-locked");
+		}
+		function unlockPageScroll() {
+			if (!document.body.classList.contains("np-locked")) return;
+			document.body.classList.remove("np-locked");
+			document.body.style.top = "";
+			window.scrollTo(0, npScrollY);
+		}
+
 		function openBanner() {
 			if (!npBanner) return;
 			npBanner.classList.add("is-open");
 			npBanner.setAttribute("aria-hidden", "false");
+			lockPageScroll();
 			if (window.CSNav && !window.CSNav.has("banner")) window.CSNav.push("banner", hideBanner);
 		}
 		/* hideBanner is the DOM-only close used by Back; closeBanner is what the
@@ -2728,6 +2758,9 @@
 			if (!npBanner) return;
 			npBanner.classList.remove("is-open");
 			npBanner.setAttribute("aria-hidden", "true");
+			// Both close paths land here, so this is the one place scrolling has
+			// to come back - whether it was the X or the Back button.
+			unlockPageScroll();
 			if (npVideo) { try { npVideo.pause(); } catch (e) {} }
 		}
 		function closeBanner() {
