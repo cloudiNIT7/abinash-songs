@@ -17,7 +17,7 @@ const SUBJECT = "mailto:admin@abinash-songs.pages.dev";
 // Cache the per-account endpoint list in KV so waking an account's other
 // devices does not read D1 first. Invalidated on any change; D1 stays the
 // source of truth and a miss (or no binding) just runs the query.
-import { kvGet, kvPut, kvDelete, hasKv, pushListKey, fcmListKey } from "./kvstore.js";
+import { kvGet, kvPut, kvDelete, hasKv, pushListKey, fcmListKey, suggestKey } from "./kvstore.js";
 
 const PUSH_LIST_TTL = 3600;            // seconds a cached endpoint list is trusted
 
@@ -217,6 +217,70 @@ export async function fcmToUser(env, userId, { topic } = {}) {
 		sent: results.filter((r) => r === "sent").length,
 		gone: results.filter((r) => r === "gone").length,
 	};
+}
+
+/**
+ * Push a "listen to this" suggestion to every device on the account.
+ *
+ * The two transports differ on purpose:
+ *   - FCM carries the finished text, because the Android messaging service runs
+ *     outside the WebView and has no cookie to fetch it with.
+ *   - Web Push stays content-free (no RFC 8291 payload encryption needed); the
+ *     service worker reads the pending suggestion from /api/me/suggestion,
+ *     which is the same pattern the approval flow already uses.
+ */
+export async function suggestToUser(env, userId, suggestion) {
+	const data = {
+		topic: "cs-suggest",
+		kind: "suggest",
+		title: suggestion.title || "Listen to this",
+		body: suggestion.body || "",
+		songId: (suggestion.song && suggestion.song.id) || "",
+		songName: (suggestion.song && suggestion.song.name) || "",
+	};
+
+	let fcmSent = 0;
+	try {
+		if (fcmAvailable(env)) {
+			const tokens = await listFcmTokens(env, userId);
+			const states = await Promise.all(tokens.map(async (token) => {
+				const state = await sendFcm(env, token, { topic: "cs-suggest", data });
+				if (state === "gone") {
+					try { await env.DB.prepare("DELETE FROM fcm_tokens WHERE token = ?").bind(token).run(); }
+					catch (e) { /* non-fatal */ }
+				}
+				return state;
+			}));
+			fcmSent = states.filter((s) => s === "sent").length;
+			if (states.some((s) => s === "gone")) await kvDelete(env, fcmListKey(userId));
+		}
+	} catch (e) { /* best-effort */ }
+
+	let webSent = 0;
+	try {
+		const endpoints = await listSubscriptions(env, userId);
+		if (endpoints.length) {
+			// Park the text where the service worker can read it after the tickle.
+			// Short-lived: a nudge nobody collected is not worth showing later.
+			await kvPut(env, suggestKey(userId), {
+				title: data.title, body: data.body,
+				songId: data.songId, songName: data.songName,
+				at: Math.floor(Date.now() / 1000),
+			}, 900);
+		}
+		const states = await Promise.all(endpoints.map(async (endpoint) => {
+			const state = await sendPush(env, endpoint, { topic: "cs-suggest" });
+			if (state === "gone") {
+				try { await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(endpoint).run(); }
+				catch (e) { /* non-fatal */ }
+			}
+			return state;
+		}));
+		webSent = states.filter((s) => s === "sent").length;
+		if (states.some((s) => s === "gone")) await kvDelete(env, pushListKey(userId));
+	} catch (e) { /* best-effort */ }
+
+	return { sent: fcmSent + webSent, fcm: fcmSent, web: webSent };
 }
 
 /**

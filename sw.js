@@ -69,11 +69,35 @@ function tellClients(message) {
 	});
 }
 
+/** The pending "listen to this" nudge, if the push was a suggestion. */
+function pendingSuggestion() {
+	return fetch("/api/me/suggestion", { credentials: "same-origin", cache: "no-store" })
+		.then(function (r) { return r.ok ? r.json() : null; })
+		.then(function (d) { return (d && d.suggestion) || null; })
+		.catch(function () { return null; });
+}
+
+function showSuggestion(s) {
+	return self.registration.showNotification(s.title || "Listen to this", {
+		body: s.body || "",
+		tag: "cs-suggest",              // one at a time; a new one replaces it
+		icon: "/assets/pwa-192.png",
+		badge: "/assets/pwa-192.png",
+		data: { kind: "suggest", songId: s.songId || "", songName: s.songName || "" },
+	});
+}
+
 self.addEventListener("push", function (event) {
-	// The push is only a nudge - ask what it was about.
+	// The push is only a nudge - ask what it was about. An approval is the
+	// urgent case, so it is checked first; otherwise look for a suggestion.
 	event.waitUntil(
 		pendingApprovals().then(function (list) {
-			if (!list.length) {
+			if (list.length) {
+				return Promise.all(list.slice(0, 3).map(showApproval))
+					.then(function () { return tellClients({ type: "cs-approvals", approvals: list }); });
+			}
+			return pendingSuggestion().then(function (s) {
+				if (s) return showSuggestion(s);
 				// Nothing pending any more (already answered elsewhere). Chrome
 				// insists a push shows something, so keep it honest and brief.
 				return self.registration.showNotification("Cloud Songs", {
@@ -81,9 +105,7 @@ self.addEventListener("push", function (event) {
 					tag: APPROVAL_TAG,
 					icon: "/assets/pwa-192.png",
 				});
-			}
-			return Promise.all(list.slice(0, 3).map(showApproval))
-				.then(function () { return tellClients({ type: "cs-approvals", approvals: list }); });
+			});
 		}),
 	);
 });
@@ -98,6 +120,24 @@ self.addEventListener("notificationclick", function (event) {
 		event.waitUntil(
 			answer(data.id, action).then(function (ok) {
 				return tellClients({ type: "cs-approval-answered", id: data.id, action: action, ok: ok });
+			}),
+		);
+		return;
+	}
+
+	// A suggestion: open the player, carrying the song so it can start there.
+	if (data.kind === "suggest") {
+		var target = "/Spotify-songs/songs.html" +
+			(data.songId ? "?song=" + encodeURIComponent(data.songId) : "");
+		event.waitUntil(
+			self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+				for (var i = 0; i < list.length; i++) {
+					if (list[i].url.indexOf("/Spotify-songs/songs") > -1) {
+						list[i].postMessage({ type: "cs-play-suggestion", songId: data.songId || "" });
+						return list[i].focus();
+					}
+				}
+				return self.clients.openWindow(target);
 			}),
 		);
 		return;

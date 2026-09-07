@@ -106,10 +106,23 @@ export async function createSessionCookie(env, userId, request = null) {
 			await env.DB.prepare(
 				`INSERT INTO sessions
 				   (id, user_id, created_at, last_seen_at, expires_at, revoked_at,
-				    device, os, browser, ip, location, user_agent)
-				 VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
-			).bind(sid, userId, now, now, exp, d.device, d.os, d.browser, d.ip, d.location, d.user_agent).run();
-		} catch (e) { /* non-fatal */ }
+				    device, os, browser, ip, location, user_agent, lat, lon, tz)
+				 VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			).bind(sid, userId, now, now, exp, d.device, d.os, d.browser, d.ip, d.location, d.user_agent,
+				d.lat, d.lon, d.tz).run();
+		} catch (e) {
+			// The lat/lon/tz columns may not be migrated yet: fall back to the
+			// original shape so a sign-in is never blocked by this.
+			try {
+				const d = describeClient(request);
+				await env.DB.prepare(
+					`INSERT INTO sessions
+					   (id, user_id, created_at, last_seen_at, expires_at, revoked_at,
+					    device, os, browser, ip, location, user_agent)
+					 VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+				).bind(sid, userId, now, now, exp, d.device, d.os, d.browser, d.ip, d.location, d.user_agent).run();
+			} catch (e2) { /* non-fatal */ }
+		}
 	}
 
 	const payload = b64urlEncode(enc.encode(JSON.stringify({
@@ -135,6 +148,11 @@ export function describeClient(request) {
 		ip: request.headers.get("CF-Connecting-IP") || "",
 		location: [cf.city, cf.region, cf.country].filter(Boolean).join(", "),
 		user_agent: ua.slice(0, 300),
+		// Kept so a "listen to this" nudge can mention the local weather and be
+		// sent at a sensible local hour. Cloudflare supplies all three.
+		lat: cf.latitude ? Number(cf.latitude) : null,
+		lon: cf.longitude ? Number(cf.longitude) : null,
+		tz: cf.timezone || "",
 	};
 }
 

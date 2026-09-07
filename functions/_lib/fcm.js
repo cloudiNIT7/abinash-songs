@@ -106,10 +106,14 @@ async function accessToken(env, sa) {
 }
 
 /**
- * Send one content-free tickle to a device token. Returns "sent", "gone" (the
- * token is unregistered/invalid, so the row should go) or "failed".
+ * Send one message to a device token. Returns "sent", "gone" (the token is
+ * unregistered/invalid, so the row should go) or "failed".
+ *
+ * Approval tickles carry no content - the app asks the API what is waiting.
+ * Suggestions do carry their text, because the native messaging service runs
+ * outside the WebView and has no session cookie to fetch it with.
  */
-export async function sendFcm(env, token, { topic = "cs-approval" } = {}) {
+export async function sendFcm(env, token, { topic = "cs-approval", data = null } = {}) {
 	const sa = serviceAccount(env);
 	if (!sa) return "failed";
 
@@ -121,12 +125,15 @@ export async function sendFcm(env, token, { topic = "cs-approval" } = {}) {
 	}
 
 	const url = `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`;
-	// Data-only, high priority, so it is delivered promptly and the app draws
-	// the notification. No `notification` block: nothing about the account.
+	// Data-only (no `notification` block) so the app decides how to present it.
+	const payload = Object.assign({ topic, kind: "approval" }, data || {});
+	// FCM requires every data value to be a string.
+	for (const k of Object.keys(payload)) payload[k] = String(payload[k] === undefined || payload[k] === null ? "" : payload[k]);
+
 	const message = {
 		message: {
 			token,
-			data: { topic, kind: "approval" },
+			data: payload,
 			android: { priority: "high" },
 		},
 	};

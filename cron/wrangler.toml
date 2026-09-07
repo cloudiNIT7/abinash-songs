@@ -1,0 +1,20 @@
+# Standalone Worker whose only job is the cron trigger for listening
+# suggestions. It is deliberately in its own directory: a wrangler.toml at the
+# repo root would become the source of truth for the *Pages* project and drop
+# the DB / SESSION_SECRET / CACHE bindings configured in the dashboard.
+#
+# Deploy:
+#   cd cron
+#   npx wrangler secret put CRON_SECRET     # same value as on the Pages project
+#   npx wrangler deploy
+name = "cloud-songs-cron"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[triggers]
+# Every two hours. The endpoint applies quiet hours and per-account caps, so
+# this only decides how often we *check*, not how often anyone is messaged.
+crons = ["0 */2 * * *"]
+
+[vars]
+SITE_ORIGIN = "https://abinash-songs.pages.dev"
