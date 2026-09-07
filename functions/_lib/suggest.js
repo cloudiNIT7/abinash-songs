@@ -151,6 +151,61 @@ const LOVE_LINES = [
 	{ title: "A love song for you", body: "Give it a listen.", mood: "romantic hits" },
 ];
 
+/* ---------- occasions ----------
+ * Fixed-date entries only, so they are correct every year without maintenance.
+ * Movable feasts (Diwali, Holi, Eid, Easter) shift with the lunar calendar, so
+ * they live in MOVABLE below keyed by exact date - add the years you want
+ * rather than having the code guess and get it wrong.
+ */
+const FIXED_EVENTS = {
+	"01-01": { key: "newyear", title: "Happy New Year \u{1f389}", body: "Start it with something good.", mood: "party hits" },
+	"02-14": { key: "valentines", title: "Happy Valentine's \u2764\ufe0f", body: "A love song for the day.", mood: "romantic love songs" },
+	"06-21": { key: "musicday", title: "It's World Music Day \u{1f3b5}", body: "Celebrate with this.", mood: "greatest hits" },
+	"08-15": { key: "independence", title: "Happy Independence Day \u{1f1ee}\u{1f1f3}", body: "Something patriotic.", mood: "patriotic songs" },
+	"10-02": { key: "gandhi", title: "Gandhi Jayanti", body: "Something peaceful for today.", mood: "devotional songs" },
+	"12-25": { key: "christmas", title: "Merry Christmas \u{1f384}", body: "Christmas songs, ready.", mood: "christmas songs" },
+	"12-31": { key: "nye", title: "New Year's Eve \u{1f38a}", body: "See the year out with this.", mood: "party songs" },
+};
+
+/**
+ * Movable occasions, by exact date. Left empty on purpose: lunar dates differ
+ * every year and a wrong guess is worse than no message. Fill in as needed, e.g.
+ *   "2026-11-08": { key: "diwali", title: "Happy Diwali \u{1fa94}", ... }
+ */
+const MOVABLE_EVENTS = {};
+
+/** The occasion for the device's local date, or null. */
+export function eventToday(tz) {
+	let iso;
+	try {
+		iso = new Intl.DateTimeFormat("en-CA", { timeZone: tz || "UTC" }).format(new Date());
+	} catch (e) {
+		iso = new Date().toISOString().slice(0, 10);
+	}
+	if (MOVABLE_EVENTS[iso]) return { ...MOVABLE_EVENTS[iso], date: iso };
+	const md = iso.slice(5);
+	if (FIXED_EVENTS[md]) return { ...FIXED_EVENTS[md], date: iso };
+	return null;
+}
+
+/* ---------- weather changes ----------
+ * Only some transitions are worth interrupting someone for. Rain starting is;
+ * "cloudy" drifting to "clear" is not. */
+const NOTABLE_CHANGES = new Set(["rain", "storm", "snow", "clear", "hot"]);
+
+/**
+ * Is this a weather turn worth a message? True when the bucket has changed and
+ * the new one is something a person would actually remark on.
+ */
+export function weatherWorthMentioning(previous, current) {
+	if (!current || !current.kind) return false;
+	if (previous === current.kind) return false;      // nothing changed
+	if (!NOTABLE_CHANGES.has(current.kind)) return false;
+	// "clear" only counts as news if it follows bad weather, not on a first run.
+	if (current.kind === "clear" && !["rain", "storm", "snow", "fog"].includes(previous || "")) return false;
+	return true;
+}
+
 function pick(list) {
 	return list[Math.floor(Math.random() * list.length)];
 }
@@ -158,19 +213,26 @@ function pick(list) {
 /**
  * Choose the line for this moment.
  *
- * Weather wins when we know it and it is worth remarking on, then the day (only
- * on the days that have their own copy), then the hour. A small share of nudges
- * is simply a love song, which is what makes the stream feel less mechanical.
+ * When the nudge was *triggered* by something - an occasion, or the weather just
+ * turning - that thing is the message; there is no point being reminded it is
+ * raining via a line about Tuesday afternoon. Otherwise it is the usual blend of
+ * weather, day and hour, with a slice reserved for plain love songs.
  */
-export function chooseLine({ weather, hour, weekday }) {
-	const roll = Math.random();
+export function chooseLine({ weather, hour, weekday, event, reason }) {
 	const part = partOfDay(hour);
 
-	// Never send party copy at 2am; love/quiet copy is what late hours get.
+	// Never send party copy at 2am; late hours get quiet copy whatever the cause.
 	if (part === "latenight") return pick(TIME_LINES.latenight);
 
-	if (roll < 0.18) return pick(LOVE_LINES);
+	if (reason === "event" && event) {
+		return { title: event.title, body: event.body, mood: event.mood };
+	}
+	if (reason === "weather" && weather && WEATHER_LINES[weather.kind]) {
+		return pick(WEATHER_LINES[weather.kind]);
+	}
 
+	const roll = Math.random();
+	if (roll < 0.18) return pick(LOVE_LINES);
 	if (weather && WEATHER_LINES[weather.kind] && roll < 0.62) {
 		return pick(WEATHER_LINES[weather.kind]);
 	}
@@ -206,20 +268,22 @@ export async function pickTrack(origin, mood, avoidId) {
 
 /**
  * Assemble the finished notification for one device context.
- * Returns { title, body, mood, song } - `song` may be null, in which case the
- * copy still works and tapping just opens the player.
+ *
+ * `weather` and `event` are passed in because the caller has already had to work
+ * them out in order to decide whether to send at all; re-fetching here would
+ * double the API calls. Returns { title, body, mood, song } - `song` may be
+ * null, in which case the copy still works and tapping just opens the player.
  */
-export async function buildSuggestion({ origin, lat, lon, tz, avoidId }) {
-	const weather = await getWeather(lat, lon);
+export async function buildSuggestion({ origin, tz, avoidId, weather = null, event = null, reason = "schedule" }) {
 	const { hour, weekday } = localNow(tz);
-	const line = chooseLine({ weather, hour, weekday });
+	const line = chooseLine({ weather, hour, weekday, event, reason });
 	const song = await pickTrack(origin, line.mood, avoidId);
 
 	let body = line.body;
 	if (song && song.name) {
 		body = song.artist ? `${song.name} \u2014 ${song.artist}` : song.name;
 	}
-	return { title: line.title, body, mood: line.mood, song, hour };
+	return { title: line.title, body, mood: line.mood, song, hour, reason };
 }
 
 export { partOfDay };
