@@ -109,11 +109,18 @@ async function accessToken(env, sa) {
  * Send one message to a device token. Returns "sent", "gone" (the token is
  * unregistered/invalid, so the row should go) or "failed".
  *
- * Approval tickles carry no content - the app asks the API what is waiting.
- * Suggestions do carry their text, because the native messaging service runs
- * outside the WebView and has no session cookie to fetch it with.
+ * Two shapes, for two different jobs:
+ *
+ *   data only (default)  - nothing is displayed automatically; the app's
+ *                          messaging service decides what to draw. Used for
+ *                          approval tickles, which carry no account data.
+ *   `notify` supplied    - a real FCM *notification* message. Firebase itself
+ *                          renders it whenever the app is backgrounded or
+ *                          closed, so no app-side code is involved. Used for
+ *                          listening suggestions, which is what lets them work
+ *                          on an already-installed build.
  */
-export async function sendFcm(env, token, { topic = "cs-approval", data = null } = {}) {
+export async function sendFcm(env, token, { topic = "cs-approval", data = null, notify = null } = {}) {
 	const sa = serviceAccount(env);
 	if (!sa) return "failed";
 
@@ -125,18 +132,29 @@ export async function sendFcm(env, token, { topic = "cs-approval", data = null }
 	}
 
 	const url = `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`;
-	// Data-only (no `notification` block) so the app decides how to present it.
 	const payload = Object.assign({ topic, kind: "approval" }, data || {});
 	// FCM requires every data value to be a string.
 	for (const k of Object.keys(payload)) payload[k] = String(payload[k] === undefined || payload[k] === null ? "" : payload[k]);
 
-	const message = {
-		message: {
-			token,
-			data: payload,
-			android: { priority: "high" },
-		},
+	const msg = {
+		token,
+		data: payload,
+		android: { priority: "high" },
 	};
+
+	if (notify && (notify.title || notify.body)) {
+		// Displayed by Firebase on the device. `tag` collapses repeats so a new
+		// suggestion replaces the previous one instead of stacking up.
+		msg.notification = { title: notify.title || "", body: notify.body || "" };
+		msg.android.notification = {
+			tag: notify.tag || "cs-suggest",
+			icon: "ic_launcher",
+			click_action: "android.intent.action.MAIN",
+		};
+		if (notify.channel) msg.android.notification.channel_id = notify.channel;
+	}
+
+	const message = { message: msg };
 
 	let res;
 	try {

@@ -220,67 +220,52 @@ export async function fcmToUser(env, userId, { topic } = {}) {
 }
 
 /**
- * Push a "listen to this" suggestion to every device on the account.
+ * Push a "listen to this" suggestion to the account's native devices.
  *
- * The two transports differ on purpose:
- *   - FCM carries the finished text, because the Android messaging service runs
- *     outside the WebView and has no cookie to fetch it with.
- *   - Web Push stays content-free (no RFC 8291 payload encryption needed); the
- *     service worker reads the pending suggestion from /api/me/suggestion,
- *     which is the same pattern the approval flow already uses.
+ * Firebase only, and sent as a real FCM *notification* message: Firebase draws
+ * it on the device itself whenever the app is backgrounded or closed, so this
+ * works on the build people already have installed - no app update needed. The
+ * song id still rides along as data, so a tap can open the right track.
+ *
+ * Browsers are not sent suggestions. Web Push stays reserved for sign-in
+ * approvals, where it is a security alert that has to reach every device.
  */
 export async function suggestToUser(env, userId, suggestion) {
+	if (!fcmAvailable(env)) return { sent: 0, fcm: 0 };
+
+	const title = suggestion.title || "Listen to this";
+	const body = suggestion.body || "";
 	const data = {
 		topic: "cs-suggest",
 		kind: "suggest",
-		title: suggestion.title || "Listen to this",
-		body: suggestion.body || "",
 		songId: (suggestion.song && suggestion.song.id) || "",
 		songName: (suggestion.song && suggestion.song.name) || "",
 	};
 
-	let fcmSent = 0;
+	let tokens;
 	try {
-		if (fcmAvailable(env)) {
-			const tokens = await listFcmTokens(env, userId);
-			const states = await Promise.all(tokens.map(async (token) => {
-				const state = await sendFcm(env, token, { topic: "cs-suggest", data });
-				if (state === "gone") {
-					try { await env.DB.prepare("DELETE FROM fcm_tokens WHERE token = ?").bind(token).run(); }
-					catch (e) { /* non-fatal */ }
-				}
-				return state;
-			}));
-			fcmSent = states.filter((s) => s === "sent").length;
-			if (states.some((s) => s === "gone")) await kvDelete(env, fcmListKey(userId));
-		}
-	} catch (e) { /* best-effort */ }
+		tokens = await listFcmTokens(env, userId);
+	} catch (e) {
+		return { sent: 0, fcm: 0 };       // table not migrated yet
+	}
+	if (!tokens.length) return { sent: 0, fcm: 0 };
 
-	let webSent = 0;
-	try {
-		const endpoints = await listSubscriptions(env, userId);
-		if (endpoints.length) {
-			// Park the text where the service worker can read it after the tickle.
-			// Short-lived: a nudge nobody collected is not worth showing later.
-			await kvPut(env, suggestKey(userId), {
-				title: data.title, body: data.body,
-				songId: data.songId, songName: data.songName,
-				at: Math.floor(Date.now() / 1000),
-			}, 900);
+	const states = await Promise.all(tokens.map(async (token) => {
+		const state = await sendFcm(env, token, {
+			topic: "cs-suggest",
+			data,
+			notify: { title, body, tag: "cs-suggest" },
+		});
+		if (state === "gone") {
+			try { await env.DB.prepare("DELETE FROM fcm_tokens WHERE token = ?").bind(token).run(); }
+			catch (e) { /* non-fatal */ }
 		}
-		const states = await Promise.all(endpoints.map(async (endpoint) => {
-			const state = await sendPush(env, endpoint, { topic: "cs-suggest" });
-			if (state === "gone") {
-				try { await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(endpoint).run(); }
-				catch (e) { /* non-fatal */ }
-			}
-			return state;
-		}));
-		webSent = states.filter((s) => s === "sent").length;
-		if (states.some((s) => s === "gone")) await kvDelete(env, pushListKey(userId));
-	} catch (e) { /* best-effort */ }
+		return state;
+	}));
+	if (states.some((s) => s === "gone")) await kvDelete(env, fcmListKey(userId));
 
-	return { sent: fcmSent + webSent, fcm: fcmSent, web: webSent };
+	const sent = states.filter((s) => s === "sent").length;
+	return { sent, fcm: sent };
 }
 
 /**
