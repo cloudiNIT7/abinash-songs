@@ -14,6 +14,12 @@ const COMMON = "&_format=json&cc=in&_marker=0%3F_marker%3D0";
 
 export const ENDPOINTS = {
 	search: `${API}?__call=autocomplete.get&_format=json&_marker=0&cc=in&includeMetaTags=1&query=`,
+	// Full song search. `autocomplete.get` above is JioSaavn's type-ahead: it
+	// answers with about five suggestions no matter what, which is why a search
+	// used to show a handful of songs. This is the real search call - it reports
+	// the total available and pages through it - so a query can return
+	// everything that matches. `n` and `p` are appended by the caller.
+	songSearch: `${API}?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0`,
 	songDetails: `${API}?__call=song.getDetails${COMMON}&pids=`,
 	albumDetails: `${API}?__call=content.getAlbumDetails${COMMON}&albumid=`,
 	playlistDetails: `${API}?__call=playlist.getDetails${COMMON}&listid=`,
@@ -149,6 +155,108 @@ export async function searchForSong(query, lyrics, songdata) {
 	// Python fetched these one by one; at the edge they can go out together.
 	const songs = await Promise.all(hits.map((s) => getSong(s.id, lyrics)));
 	return songs.filter(Boolean);
+}
+
+/* ---------- full search ----------
+ * `search.getResults` returns everything needed for a playable row - including
+ * `encrypted_media_url` - so a page of results costs one upstream call rather
+ * than one per song. That matters: forty per-song lookups would sit near the
+ * Workers subrequest ceiling on every search.
+ */
+
+/** Flatten a search result into the flat shape formatSong() expects. */
+function flattenSearchHit(hit) {
+	const mi = hit.more_info || {};
+	const map = mi.artistMap || {};
+	const names = (list) => (Array.isArray(list) ? list.map((a) => a && a.name).filter(Boolean).join(", ") : "");
+	const primary = names(map.primary_artists) || names(map.artists) || hit.subtitle || "";
+	return {
+		id: hit.id,
+		song: hit.title,
+		album: mi.album || "",
+		year: hit.year || "",
+		release_date: mi.release_date || "",
+		primary_artists: primary,
+		singers: names(map.artists) || primary,
+		featured_artists: names(map.featured_artists),
+		music: mi.music || "",
+		image: hit.image,
+		language: hit.language || "",
+		duration: mi.duration || "",
+		play_count: hit.play_count || "",
+		album_id: mi.album_id || "",
+		album_url: mi.album_url || "",
+		perma_url: hit.perma_url || "",
+		label: mi.label || "",
+		has_lyrics: mi.has_lyrics || "false",
+		lyrics_id: mi.lyrics_id || "",
+		copyright_text: mi.copyright_text || "",
+		encrypted_media_url: mi.encrypted_media_url || "",
+		"320kbps": mi["320kbps"] || "false",
+		vcode: mi.vcode || "",
+		vlink: mi.vlink || "",
+		explicit_content: hit.explicit_content || 0,
+		type: hit.type || "song",
+	};
+}
+
+/**
+ * Sort key for "latest first". A full release_date is the most precise thing we
+ * get; plenty of rows only carry a year, so fall back to that. Anything with no
+ * date at all sinks to the bottom rather than jumping to the top.
+ */
+function releaseRank(song) {
+	const rd = String(song.release_date || "").trim();
+	const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(rd);
+	if (m) return Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3]);
+	const year = parseInt(String(song.year || "").trim(), 10);
+	if (Number.isFinite(year) && year > 1900) return year * 10000;
+	return 0;
+}
+
+/**
+ * Search songs by name, newest release first.
+ *
+ * Returns { results, total, page, count } so a caller can page through the lot;
+ * `total` is what JioSaavn says is available for the query.
+ */
+export async function searchSongs(query, { page = 1, count = 40, lyrics = false } = {}) {
+	const n = Math.min(Math.max(parseInt(count, 10) || 40, 1), 100);
+	const p = Math.max(parseInt(page, 10) || 1, 1);
+	const url = `${ENDPOINTS.songSearch}&n=${n}&p=${p}&q=${encodeURIComponent(query)}`;
+	const res = await upstreamJson(url, 300);
+	const hits = (res && res.results) || [];
+
+	const songs = await Promise.all(hits.map((h) => formatSong(flattenSearchHit(h), lyrics)));
+	let results = songs.filter(Boolean);
+	// Newest first. Stable for equal dates, so equally-dated rows keep the
+	// relevance order JioSaavn returned them in.
+	results.sort((a, b) => releaseRank(b) - releaseRank(a));
+	// JioSaavn lists every re-release and compilation separately, so a search can
+	// come back with the same recording a dozen times over. Keep one of each -
+	// the newest, since the list is already in that order.
+	results = dedupeSongs(results);
+
+	return {
+		results,
+		total: Number(res && res.total) || results.length,
+		page: p,
+		count: n,
+	};
+}
+
+/** One row per title+artist. Assumes the list is already newest-first. */
+function dedupeSongs(list) {
+	const seen = new Set();
+	const out = [];
+	for (const s of list) {
+		const key = (String(s.song || "").toLowerCase().replace(/\s+/g, " ").trim() +
+			"|" + String(s.primary_artists || "").toLowerCase().replace(/\s+/g, " ").trim());
+		if (seen.has(key)) continue;
+		seen.add(key);
+		out.push(s);
+	}
+	return out;
 }
 
 export async function getPlaylistId(url) {
@@ -349,20 +457,25 @@ export async function getArtist(artistId, lyrics) {
  * refreshing behind the request. Answers that must not go stale - anything
  * carrying a media url that might be re-signed upstream - leave `swr` at 0.
  */
-export function json(body, { status = 200, maxAge = 60, swr = 0 } = {}) {
+export function json(body, { status = 200, maxAge = 60, swr = 0, headers = null } = {}) {
 	const cacheControl = maxAge > 0
 		? `public, max-age=${maxAge}, s-maxage=${maxAge + swr}` +
 		  (swr > 0 ? `, stale-while-revalidate=${swr}` : "")
 		: "public, max-age=0";
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: {
-			"Content-Type": "application/json; charset=utf-8",
-			// Same-origin app, so no CORS header: nothing else needs this API.
-			"Cache-Control": cacheControl,
-			"X-Content-Type-Options": "nosniff",
-		},
-	});
+	const out = {
+		"Content-Type": "application/json; charset=utf-8",
+		// Same-origin app, so no CORS header: nothing else needs this API.
+		"Cache-Control": cacheControl,
+		"X-Content-Type-Options": "nosniff",
+	};
+	// Extra headers, e.g. the paging totals on a search. Cannot override the
+	// three above, which the cache layer reasons about.
+	if (headers) {
+		for (const [k, v] of Object.entries(headers)) {
+			if (!(k in out)) out[k] = String(v);
+		}
+	}
+	return new Response(JSON.stringify(body), { status, headers: out });
 }
 
 export function fail(message, status = 200) {
